@@ -40,10 +40,16 @@ export interface CharacteristicData {
   kind?: string;
   okeiCode?: string;
   okeiName?: string;
+  normalizedName?: string;
+  matchSimilarity?: number;
+  isMatched?: boolean;
 }
 
 export interface ModelData {
   name: string;
+  normalizedName?: string;
+  modelMatchSimilarity?: number;
+  isModelMatched?: boolean;
   ktruCode?: string;
   ktruName?: string;
   okpd2Code?: string;

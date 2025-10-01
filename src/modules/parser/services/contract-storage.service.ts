@@ -146,28 +146,35 @@ export class ContractStorageService {
   private async saveModel(modelData: any): Promise<Model> {
     let model: Model | null = null;
 
-    // Create a more specific search criteria for model uniqueness
-    // Include more fields to better distinguish between different products
+    // If we have a normalized name, use it as primary search criteria
+    if (modelData.normalizedName) {
+      model = await this.modelRepository.findOne({
+        where: { normalizedName: modelData.normalizedName },
+      });
+      
+      if (model) {
+        this.logger.debug(
+          `Found existing model with normalizedName "${modelData.normalizedName}"`
+        );
+        return model;
+      }
+    }
+
+    // Fallback to original search criteria if no normalized name or no match found
     const searchCriteria: Record<string, any> = {};
     
     if (modelData.ktruCode) {
       searchCriteria.ktruCode = modelData.ktruCode;
     }
-    if (modelData.name) {
-      searchCriteria.name = modelData.name;
+    if (modelData.certificateName) {
+      searchCriteria.certificateName = modelData.certificateName;
     }
     if (modelData.medicalProductCode) {
       searchCriteria.medicalProductCode = modelData.medicalProductCode;
     }
-    if (modelData.certificateName) {
-      searchCriteria.certificateName = modelData.certificateName;
-    }
-    if (modelData.originCountryCode) {
-      searchCriteria.originCountryCode = modelData.originCountryCode;
-    }
 
     // Only search for existing model if we have meaningful criteria
-    if (Object.keys(searchCriteria).length > 1) {
+    if (Object.keys(searchCriteria).length > 0) {
       model = await this.modelRepository.findOne({
         where: searchCriteria,
       });
@@ -176,6 +183,7 @@ export class ContractStorageService {
     if (!model) {
       model = this.modelRepository.create({
         name: modelData.name,
+        normalizedName: modelData.normalizedName,
         ktruCode: modelData.ktruCode,
         ktruName: modelData.ktruName,
         okpd2Code: modelData.okpd2Code,
@@ -205,6 +213,9 @@ export class ContractStorageService {
       kind: charData.kind,
       okeiCode: charData.okeiCode,
       okeiName: charData.okeiName,
+      normalizedName: charData.normalizedName,
+      matchSimilarity: charData.matchSimilarity,
+      isMatched: charData.isMatched || false,
     });
 
     return await this.characteristicRepository.save(characteristic);

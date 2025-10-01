@@ -13,7 +13,7 @@ export class ContractParserService {
     private contractStorageService: ContractStorageService,
   ) {}
 
-  async parseContractFile(filePath: string): Promise<void> {
+  async parseContractFile(filePath: string, contractNumber?: string): Promise<void> {
     try {
       this.logger.log(`Parsing contract file: ${filePath}`);
       
@@ -22,7 +22,7 @@ export class ContractParserService {
       }
 
       const xmlContent = fs.readFileSync(filePath, 'utf-8');
-      const contractData = await this.xmlParserService.parseContractXml(xmlContent);
+      const contractData = await this.xmlParserService.parseContractXml(xmlContent, contractNumber);
       await this.contractStorageService.saveContract(contractData);
 
       this.logger.log(`Successfully processed contract: ${contractData.contractNumber}`);
@@ -74,6 +74,30 @@ export class ContractParserService {
     } catch (error) {
       this.logger.error(`Error parsing contract from XML string: ${error.message}`);
       throw error;
+    }
+  }
+
+  async findContractXmlFiles(reestrNumber: string): Promise<string[]> {
+    try {
+      // Ищем в downloads директории, где скачиваются файлы
+      const downloadsDir = path.join(process.cwd(), 'downloads');
+      
+      if (!fs.existsSync(downloadsDir)) {
+        this.logger.warn(`Downloads directory not found: ${downloadsDir}`);
+        return [];
+      }
+
+      // Ищем файлы, которые начинаются с номера контракта
+      const files = fs.readdirSync(downloadsDir);
+      const xmlFiles = files
+        .filter(file => file.startsWith(reestrNumber) && file.endsWith('.xml'))
+        .map(file => path.join(downloadsDir, file));
+
+      this.logger.log(`Found ${xmlFiles.length} XML files for contract ${reestrNumber}`);
+      return xmlFiles;
+    } catch (error) {
+      this.logger.error(`Error finding XML files for contract ${reestrNumber}: ${error.message}`);
+      return [];
     }
   }
 }

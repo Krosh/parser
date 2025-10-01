@@ -10,59 +10,114 @@ import { ContractFile } from '../dto/contract-list.dto';
 export class ContractFileDownloaderService {
   private readonly logger = new Logger(ContractFileDownloaderService.name);
   private readonly BASE_URL = 'https://zakupki.gov.ru';
+  private readonly MAX_RETRIES = 3;
+  private readonly RETRY_DELAY_BASE = 2000; // 2 seconds base delay
 
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  async getContractInfoId(reestrNumber: string): Promise<string | null> {
-    try {
-      const contractUrl = `/epz/contract/contractCard/common-info.html?reestrNumber=${reestrNumber}`;
-      await this.delay(1000);
-
-      const httpsAgent = new https.Agent({
-        minVersion: 'TLSv1.2',
-        ciphers: 'DEFAULT',
-      });
-
-      const response = await axios.get(`${this.BASE_URL}${contractUrl}`, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          Accept:
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-          'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
-          Connection: 'keep-alive',
-        },
-        httpsAgent,
-      });
-
-      const $ = cheerio.load(response.data);
-
-      // Look for contractInfoId in links or forms
-      const documentLink = $('a[href*="document-info.html"]').first();
-      if (documentLink.length > 0) {
-        const href = documentLink.attr('href');
-        if (href) {
-          const urlParams = new URLSearchParams(href.split('?')[1]);
-          return urlParams.get('contractInfoId');
+  private async retryOperation<T>(
+    operation: () => Promise<T>,
+    operationName: string,
+    maxRetries: number = this.MAX_RETRIES
+  ): Promise<T> {
+    let lastError: any;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 1) {
+          const delayMs = this.RETRY_DELAY_BASE * Math.pow(2, attempt - 2); // Exponential backoff
+          this.logger.warn(`${operationName} - Attempt ${attempt}/${maxRetries} after ${delayMs}ms delay`);
+          await this.delay(delayMs);
         }
+        
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        const isRetryableError = this.isRetryableError(error);
+        
+        if (attempt === maxRetries || !isRetryableError) {
+          this.logger.error(`${operationName} - Final attempt ${attempt} failed: ${error.message}`);
+          throw error;
+        }
+        
+        this.logger.warn(`${operationName} - Attempt ${attempt} failed: ${error.message}, retrying...`);
       }
-
-      // Alternative: look for it in JavaScript variables or hidden inputs
-      const scriptText = response.data;
-      const contractInfoIdMatch = scriptText.match(
-        /contractInfoId[\"\\s]*[:=][\"\\s]*([^\"&\\s]+)/,
-      );
-      if (contractInfoIdMatch) {
-        return contractInfoIdMatch[1];
-      }
-
-      return null;
-    } catch (error) {
-      this.logger.error(`Error getting contractInfoId for ${reestrNumber}:`, error);
-      return null;
     }
+    
+    throw lastError;
+  }
+
+  private isRetryableError(error: any): boolean {
+    // Retry on network errors, timeouts, and 5xx server errors
+    if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.code === 'ENOTFOUND') {
+      return true;
+    }
+    
+    if (error.response?.status >= 500) {
+      return true;
+    }
+    
+    // Retry on specific 4xx errors that might be temporary
+    if (error.response?.status === 429 || error.response?.status === 408) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  async getContractInfoId(reestrNumber: string): Promise<string | null> {
+    return this.retryOperation(
+      async () => {
+        const contractUrl = `/epz/contract/contractCard/common-info.html?reestrNumber=${reestrNumber}`;
+        await this.delay(1000);
+
+        const httpsAgent = new https.Agent({
+          minVersion: 'TLSv1.2',
+          ciphers: 'DEFAULT',
+        });
+
+        const response = await axios.get(`${this.BASE_URL}${contractUrl}`, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            Accept:
+              'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+            'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
+            Connection: 'keep-alive',
+          },
+          httpsAgent,
+        });
+
+        const $ = cheerio.load(response.data);
+
+        // Look for contractInfoId in links or forms
+        const documentLink = $('a[href*="document-info.html"]').first();
+        if (documentLink.length > 0) {
+          const href = documentLink.attr('href');
+          if (href) {
+            const urlParams = new URLSearchParams(href.split('?')[1]);
+            return urlParams.get('contractInfoId');
+          }
+        }
+
+        // Alternative: look for it in JavaScript variables or hidden inputs
+        const scriptText = response.data;
+        const contractInfoIdMatch = scriptText.match(
+          /contractInfoId[\"\\s]*[:=][\"\\s]*([^\"&\\s]+)/,
+        );
+        if (contractInfoIdMatch) {
+          return contractInfoIdMatch[1];
+        }
+
+        return null;
+      },
+      `getContractInfoId(${reestrNumber})`
+    ).catch(error => {
+      this.logger.error(`Error getting contractInfoId for ${reestrNumber}:`, error.message);
+      return null;
+    });
   }
 
   async findContractFiles(
@@ -165,43 +220,44 @@ export class ContractFileDownloaderService {
     filename: string,
     downloadDir: string = 'downloads',
   ): Promise<string> {
-    try {
-      const downloadsDir = path.join(process.cwd(), downloadDir);
+    return this.retryOperation(
+      async () => {
+        const downloadsDir = path.join(process.cwd(), downloadDir);
 
-      // Create downloads directory if it doesn't exist
-      if (!fs.existsSync(downloadsDir)) {
-        fs.mkdirSync(downloadsDir, { recursive: true });
-      }
+        // Create downloads directory if it doesn't exist
+        if (!fs.existsSync(downloadsDir)) {
+          fs.mkdirSync(downloadsDir, { recursive: true });
+        }
 
-      const filePath = path.join(downloadsDir, filename);
+        const filePath = path.join(downloadsDir, filename);
 
-      const httpsAgent = new https.Agent({
-        minVersion: 'TLSv1.2',
-        ciphers: 'DEFAULT',
-      });
+        const httpsAgent = new https.Agent({
+          minVersion: 'TLSv1.2',
+          ciphers: 'DEFAULT',
+        });
 
-      const response = await axios({
-        method: 'GET',
-        url: fileUrl,
-        responseType: 'stream',
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        },
-        httpsAgent,
-      });
+        const response = await axios({
+          method: 'GET',
+          url: fileUrl,
+          responseType: 'stream',
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          },
+          httpsAgent,
+          timeout: 30000, // 30 second timeout
+        });
 
-      const writer = fs.createWriteStream(filePath);
-      response.data.pipe(writer);
+        const writer = fs.createWriteStream(filePath);
+        response.data.pipe(writer);
 
-      return new Promise((resolve, reject) => {
-        writer.on('finish', () => resolve(filePath));
-        writer.on('error', reject);
-      });
-    } catch (error) {
-      this.logger.error(`Error downloading file ${filename}:`, error);
-      throw error;
-    }
+        return new Promise<string>((resolve, reject) => {
+          writer.on('finish', () => resolve(filePath));
+          writer.on('error', reject);
+        });
+      },
+      `downloadContractFile(${filename})`
+    );
   }
 
   async downloadAllContractFiles(reestrNumber: string): Promise<string[]> {
@@ -212,9 +268,18 @@ export class ContractFileDownloaderService {
       }
 
       const files = await this.findContractFiles(reestrNumber, contractInfoId);
+      
+      // Filter only XML files
+      const xmlFiles = files.filter(file => {
+        const extension = this.getFileExtension(file.title);
+        return extension === 'xml';
+      });
+
+      this.logger.log(`Found ${files.length} total files, ${xmlFiles.length} XML files for contract ${reestrNumber}`);
+      
       const downloadedFiles: string[] = [];
 
-      for (const file of files) {
+      for (const file of xmlFiles) {
         try {
           const filePath = await this.downloadContractFile(file.url, file.filename);
           downloadedFiles.push(filePath);

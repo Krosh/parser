@@ -12,6 +12,7 @@ import {
 import { ContractParserService } from '../services/contract-parser.service';
 import { ContractListParserService } from '../services/contract-list-parser.service';
 import { ContractFileDownloaderService } from '../services/contract-file-downloader.service';
+import { CharacteristicMatcherService } from '../services/characteristic-matcher.service';
 
 @Controller('parser')
 export class ParserController {
@@ -21,6 +22,7 @@ export class ParserController {
     private contractParserService: ContractParserService,
     private contractListParserService: ContractListParserService,
     private contractFileDownloaderService: ContractFileDownloaderService,
+    private characteristicMatcherService: CharacteristicMatcherService,
   ) {}
 
   @Post('parse-xml')
@@ -176,7 +178,10 @@ export class ParserController {
 
       for (const xmlFile of xmlFiles) {
         try {
-          await this.contractParserService.parseContractFile(xmlFile);
+          await this.contractParserService.parseContractFile(
+            xmlFile,
+            reestrNumber,
+          );
           parsedCount++;
         } catch (error) {
           this.logger.error(
@@ -200,6 +205,71 @@ export class ParserController {
     }
   }
 
+  @Post('parse-single-contract/:reestrNumber')
+  async parseSingleContract(@Param('reestrNumber') reestrNumber: string) {
+    try {
+      if (!reestrNumber) {
+        throw new BadRequestException('Reestr number is required');
+      }
+
+      this.logger.log(`Starting to parse contract: ${reestrNumber}`);
+
+      // Find XML files for this contract
+      const xmlFiles = await this.contractParserService.findContractXmlFiles(reestrNumber);
+      
+      if (xmlFiles.length === 0) {
+        throw new BadRequestException(`No XML files found for contract ${reestrNumber}. Download files first.`);
+      }
+
+      let parsedCount = 0;
+      const results: Array<{
+        file: string;
+        success: boolean;
+        result?: any;
+        error?: string;
+      }> = [];
+
+      for (const xmlFile of xmlFiles) {
+        try {
+          this.logger.log(`Parsing file: ${xmlFile}`);
+          await this.contractParserService.parseContractFile(
+            xmlFile,
+            reestrNumber,
+          );
+          parsedCount++;
+          results.push({
+            file: xmlFile,
+            success: true,
+          });
+          this.logger.log(`Successfully parsed: ${xmlFile}`);
+        } catch (error) {
+          this.logger.error(
+            `Failed to parse file ${xmlFile}: ${error.message}`,
+          );
+          results.push({
+            file: xmlFile,
+            success: false,
+            error: error.message,
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: `Parsed contract ${reestrNumber}`,
+        reestrNumber,
+        totalFiles: xmlFiles.length,
+        parsedFiles: parsedCount,
+        results,
+      };
+    } catch (error) {
+      this.logger.error(`Error parsing single contract: ${error.message}`);
+      throw new InternalServerErrorException(
+        `Failed to parse contract: ${error.message}`,
+      );
+    }
+  }
+
   @Post('batch-process')
   async batchProcessContracts(
     @Body()
@@ -211,57 +281,113 @@ export class ParserController {
     },
   ) {
     try {
-      let contracts: any[] = [];
-
-      if (body.startPage && body.endPage) {
-        contracts = await this.contractListParserService.fetchMultiplePages(
-          body.startPage,
-          body.endPage,
-        );
-      } else {
-        const page = body.page || 1;
-        contracts =
-          await this.contractListParserService.fetchContractList(page);
-      }
-
       const results = {
-        totalContracts: contracts.length,
+        totalContracts: 0,
         processed: 0,
         errors: 0,
         downloaded: 0,
         parsed: 0,
       };
 
-      for (const contract of contracts) {
-        try {
-          const downloadedFiles =
-            await this.contractFileDownloaderService.downloadAllContractFiles(
-              contract.reestrNumber,
+      if (body.startPage && body.endPage) {
+        // Process pages one by one instead of fetching all at once
+        for (let page = body.startPage; page <= body.endPage; page++) {
+          try {
+            const contracts =
+              await this.contractListParserService.fetchContractList(page);
+            results.totalContracts += contracts.length;
+            this.logger.log(
+              `Processing page ${page} with ${contracts.length} contracts`,
             );
-          results.downloaded += downloadedFiles.length;
 
-          if (!body.downloadOnly) {
-            const xmlFiles = downloadedFiles.filter((file) =>
-              file.endsWith('.xml'),
-            );
-            for (const xmlFile of xmlFiles) {
+            // Process contracts from this page immediately
+            for (const contract of contracts) {
               try {
-                await this.contractParserService.parseContractFile(xmlFile);
-                results.parsed++;
+                const downloadedFiles =
+                  await this.contractFileDownloaderService.downloadAllContractFiles(
+                    contract.reestrNumber,
+                  );
+                results.downloaded += downloadedFiles.length;
+
+                if (!body.downloadOnly) {
+                  const xmlFiles = downloadedFiles.filter((file) =>
+                    file.endsWith('.xml'),
+                  );
+                  for (const xmlFile of xmlFiles) {
+                    try {
+                      await this.contractParserService.parseContractFile(
+                        xmlFile,
+                        contract.reestrNumber,
+                      );
+                      results.parsed++;
+                    } catch (error) {
+                      this.logger.error(
+                        `Failed to parse file ${xmlFile}: ${error.message}`,
+                      );
+                    }
+                  }
+                }
+
+                results.processed++;
               } catch (error) {
                 this.logger.error(
-                  `Failed to parse file ${xmlFile}: ${error.message}`,
+                  `Failed to process contract ${contract.reestrNumber}: ${error.message}`,
                 );
+                results.errors++;
               }
             }
-          }
 
-          results.processed++;
-        } catch (error) {
-          this.logger.error(
-            `Failed to process contract ${contract.reestrNumber}: ${error.message}`,
-          );
-          results.errors++;
+            this.logger.log(
+              `Completed page ${page}. Total processed: ${results.processed}`,
+            );
+          } catch (error) {
+            this.logger.error(
+              `Failed to process page ${page}: ${error.message}`,
+            );
+            results.errors++;
+          }
+        }
+      } else {
+        // Single page processing
+        const page = body.page || 1;
+        const contracts =
+          await this.contractListParserService.fetchContractList(page);
+        results.totalContracts = contracts.length;
+
+        for (const contract of contracts) {
+          try {
+            const downloadedFiles =
+              await this.contractFileDownloaderService.downloadAllContractFiles(
+                contract.reestrNumber,
+              );
+            results.downloaded += downloadedFiles.length;
+
+            if (!body.downloadOnly) {
+              const xmlFiles = downloadedFiles.filter((file) =>
+                file.endsWith('.xml'),
+              );
+              for (const xmlFile of xmlFiles) {
+                try {
+                  await this.contractParserService.parseContractFile(
+                    xmlFile,
+                    contract.reestrNumber,
+                  );
+                  results.parsed++;
+                } catch (error) {
+                  this.logger.error(
+                    `Failed to parse file ${xmlFile}: ${error.message}`,
+                  );
+                }
+              }
+            }
+
+            results.processed++;
+          } catch (error) {
+            this.logger.error(
+              `Failed to process contract ${contract.reestrNumber}: ${error.message}`,
+            );
+            results.errors++;
+          }
         }
       }
 

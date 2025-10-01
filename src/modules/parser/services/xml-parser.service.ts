@@ -1,12 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as xml2js from 'xml2js';
-import { ContractData, CustomerData, ParticipantData, ModelData, CharacteristicData } from '../dto/contract-data.dto';
+import {
+  ContractData,
+  CustomerData,
+  ParticipantData,
+  ModelData,
+  CharacteristicData,
+} from '../dto/contract-data.dto';
+import { CharacteristicMatcherService } from './characteristic-matcher.service';
+import { ModelNormalizerService } from './model-normalizer.service';
 
 @Injectable()
 export class XmlParserService {
   private readonly logger = new Logger(XmlParserService.name);
 
-  async parseContractXml(xmlContent: string): Promise<ContractData> {
+  constructor(
+    private characteristicMatcherService: CharacteristicMatcherService,
+    private modelNormalizerService: ModelNormalizerService,
+  ) {}
+
+  async parseContractXml(xmlContent: string, overrideContractNumber?: string): Promise<ContractData> {
     try {
       const parser = new xml2js.Parser({
         explicitArray: false,
@@ -15,27 +28,43 @@ export class XmlParserService {
       });
 
       const result = await parser.parseStringPromise(xmlContent);
-      const contract = result['ns6:cpElectronicContract'] || result.cpElectronicContract;
+      const contract =
+        result['ns6:cpElectronicContract'] || result.cpElectronicContract;
 
       if (!contract) {
         throw new Error('Invalid XML format: contract data not found');
       }
 
-      return this.extractContractData(contract);
+      return await this.extractContractData(contract, overrideContractNumber);
     } catch (error) {
       this.logger.error(`Error parsing XML: ${error.message}`);
       throw error;
     }
   }
 
-  private extractContractData(contract: any): ContractData {
+  private async extractContractData(contract: any, overrideContractNumber?: string): Promise<ContractData> {
     const customer = this.extractCustomerData(contract.customerInfo);
     const participant = this.extractParticipantData(contract.participantInfo);
-    const models = this.extractModelsData(contract.contractSubjectInfo?.productsInfo);
+
+    // Извлекаем номер контракта для передачи в extractModelsData
+    this.logger.debug(`DEBUG: contract.commonInfo = ${JSON.stringify(contract.commonInfo, null, 2)}`);
+    const contractNumber = overrideContractNumber || contract.commonInfo?.contractNumber || '';
+    this.logger.debug(`DEBUG: final contractNumber = "${contractNumber}" (override: "${overrideContractNumber}")`);
+
+    const models = await this.extractModelsData(
+      contract.contractSubjectInfo?.productsInfo,
+      contractNumber,
+    );
 
     // Extract contract dates
-    const contractStartDate = this.extractDate(contract.contractConditionsInfo?.contractExecutionTermsInfo?.notRelativeTermsInfo?.startDate);
-    const contractEndDate = this.extractDate(contract.contractConditionsInfo?.contractExecutionTermsInfo?.notRelativeTermsInfo?.endDate);
+    const contractStartDate = this.extractDate(
+      contract.contractConditionsInfo?.contractExecutionTermsInfo
+        ?.notRelativeTermsInfo?.startDate,
+    );
+    const contractEndDate = this.extractDate(
+      contract.contractConditionsInfo?.contractExecutionTermsInfo
+        ?.notRelativeTermsInfo?.endDate,
+    );
 
     return {
       contractNumber: contract.contractNumber,
@@ -44,9 +73,17 @@ export class XmlParserService {
       docType: contract.docType,
       mainDocId: contract.mainDocInfo?.id,
       contractSubject: contract.contractSubjectInfo?.contractSubject,
-      contractPrice: parseFloat(contract.contractFinancingInfo?.contractPriceInfo?.price) || 0,
-      currencyCode: contract.contractFinancingInfo?.contractPriceInfo?.currencyInfo?.['ns3:code'],
-      currencyName: contract.contractFinancingInfo?.contractPriceInfo?.currencyInfo?.['ns3:name'],
+      contractPrice:
+        parseFloat(contract.contractFinancingInfo?.contractPriceInfo?.price) ||
+        0,
+      currencyCode:
+        contract.contractFinancingInfo?.contractPriceInfo?.currencyInfo?.[
+          'ns3:code'
+        ],
+      currencyName:
+        contract.contractFinancingInfo?.contractPriceInfo?.currencyInfo?.[
+          'ns3:name'
+        ],
       placingWayCode: contract.foundationInfo?.placingWay?.['ns3:code'],
       placingWayName: contract.foundationInfo?.placingWay?.['ns3:name'],
       purchaseCode: contract.foundationInfo?.purchaseCode,
@@ -54,10 +91,19 @@ export class XmlParserService {
       contractStartDate,
       contractEndDate,
       signDate: new Date(), // TODO: extract actual sign date from XML
-      deliveryPlace: contract.contractConditionsInfo?.deliveryPlaceInfo?.byGARInfo?.['ns2:GARInfo']?.['ns2:GARAddress'],
+      deliveryPlace:
+        contract.contractConditionsInfo?.deliveryPlaceInfo?.byGARInfo?.[
+          'ns2:GARInfo'
+        ]?.['ns2:GARAddress'],
       warrantyTerm: contract.contractConditionsInfo?.warrantyInfo?.warrantyTerm,
-      guaranteeAmount: parseFloat(contract.contractConditionsInfo?.contractGuaranteeInfo?.amount) || 0,
-      guaranteePercent: parseFloat(contract.contractConditionsInfo?.contractGuaranteeInfo?.part) || 0,
+      guaranteeAmount:
+        parseFloat(
+          contract.contractConditionsInfo?.contractGuaranteeInfo?.amount,
+        ) || 0,
+      guaranteePercent:
+        parseFloat(
+          contract.contractConditionsInfo?.contractGuaranteeInfo?.part,
+        ) || 0,
       customer,
       participant,
       models,
@@ -86,7 +132,7 @@ export class XmlParserService {
 
   private extractParticipantData(participantInfo: any): ParticipantData {
     const individualInfo = participantInfo.individualPersonRFInfo;
-    
+
     return {
       lastName: individualInfo?.nameInfo?.['ns2:lastName'],
       firstName: individualInfo?.nameInfo?.['ns2:firstName'],
@@ -104,7 +150,10 @@ export class XmlParserService {
     };
   }
 
-  private extractModelsData(productsInfo: any): ModelData[] {
+  private async extractModelsData(
+    productsInfo: any,
+    contractNumber: string,
+  ): Promise<ModelData[]> {
     if (!productsInfo?.productsInfoElectronicContract?.productInfo) {
       return [];
     }
@@ -114,21 +163,89 @@ export class XmlParserService {
       products = [products];
     }
 
-    return products.map(product => this.extractModelData(product));
+    return Promise.all(
+      products.map((product) => this.extractModelData(product, contractNumber)),
+    );
   }
 
-  private extractModelData(product: any): ModelData {
-    const characteristics = this.extractCharacteristics(product.KTRUInfo?.characteristics);
+  private async extractModelData(
+    product: any,
+    contractNumber: string,
+  ): Promise<ModelData> {
+    const characteristics = this.extractCharacteristics(
+      product.KTRUInfo?.characteristics,
+    );
+
+    // Извлекаем название модели из certificateName
+    const certificateName =
+      product.medicalProductInfo?.certificateNameMedicalProduct || '';
+    const extractionResult =
+      this.modelNormalizerService.extractModelNameFromCertificate(
+        certificateName,
+      );
+
+    let modelMatchResult;
+    let modelNameForNormalization;
+    
+    if (extractionResult.foundInReferenceList && extractionResult.modelName) {
+      // Если модель уже найдена в эталонном списке, не нужно заново искать
+      modelNameForNormalization = extractionResult.modelName;
+      modelMatchResult = {
+        normalizedName: extractionResult.modelName,
+        similarity: 1.0,
+        matched: true,
+        patternName: extractionResult.patternName,
+      };
+      this.logger.debug(
+        `Using extracted model "${extractionResult.modelName}" from pattern "${extractionResult.patternName}" (found in reference list)`,
+      );
+    } else {
+      // Используем извлеченное название для нормализации, fallback на product.name
+      modelNameForNormalization = extractionResult.modelName || product.name;
+      modelMatchResult = this.modelNormalizerService.normalizeModelName(
+        modelNameForNormalization,
+      );
+    }
+
+    if (modelMatchResult.matched) {
+      this.logger.debug(
+        `Normalized model "${modelNameForNormalization}" (extracted from certificate) to "${modelMatchResult.normalizedName}" (similarity: ${modelMatchResult.similarity.toFixed(3)})`,
+      );
+    } else {
+      this.logger.debug(
+        `No suitable match found for model "${modelNameForNormalization}" (extracted from certificate, best similarity: ${modelMatchResult.similarity.toFixed(3)})`,
+      );
+    }
+
+    // Сохраняем маппинг в отдельную таблицу
+    this.logger.debug(`DEBUG: contractNumber="${contractNumber}", certificateName="${certificateName}"`);
+    
+    if (certificateName && contractNumber) {
+      this.logger.debug(`Saving model contract mapping: ${contractNumber} -> ${modelMatchResult.normalizedName}`);
+      await this.modelNormalizerService.saveModelContractMapping(
+        contractNumber,
+        certificateName,
+        modelMatchResult.normalizedName,
+        modelMatchResult.similarity,
+        'pattern_extraction', // extractionMethod
+      );
+    } else {
+      this.logger.warn(`Skipping model contract mapping - missing data: contractNumber="${contractNumber}", certificateName="${certificateName}"`);
+    }
 
     return {
       name: product.name,
+      normalizedName: modelMatchResult.normalizedName || undefined,
+      modelMatchSimilarity: modelMatchResult.similarity,
+      isModelMatched: modelMatchResult.matched,
       ktruCode: product.KTRUInfo?.['ns3:code'],
       ktruName: product.KTRUInfo?.['ns3:name'],
       okpd2Code: product.OKPD2Info?.['ns3:OKPDCode'],
       okpd2Name: product.OKPD2Info?.['ns3:OKPDName'],
       medicalProductCode: product.medicalProductInfo?.medicalProductCode,
       medicalProductName: product.medicalProductInfo?.medicalProductName,
-      certificateName: product.medicalProductInfo?.certificateNameMedicalProduct,
+      certificateName:
+        product.medicalProductInfo?.certificateNameMedicalProduct,
       originCountryCode: product.originCountryInfo?.['ns3:countryCode'],
       originCountryName: product.originCountryInfo?.['ns3:countryFullName'],
       quantity: parseInt(product.quantity) || 1,
@@ -142,7 +259,9 @@ export class XmlParserService {
     };
   }
 
-  private extractCharacteristics(characteristicsData: any): CharacteristicData[] {
+  private extractCharacteristics(
+    characteristicsData: any,
+  ): CharacteristicData[] {
     if (!characteristicsData?.characteristicsUsingReferenceInfo) {
       return [];
     }
@@ -152,15 +271,43 @@ export class XmlParserService {
       characteristics = [characteristics];
     }
 
-    return characteristics.map(char => ({
-      code: char['ns2:code'],
-      name: char['ns2:name'],
-      value: this.extractCharacteristicValue(char['ns2:values']),
-      type: char['ns2:type'],
-      kind: char['ns2:kind'],
-      okeiCode: char['ns2:OKEI']?.['ns3:code'],
-      okeiName: char['ns2:OKEI']?.['ns3:name'],
-    }));
+    return characteristics.map((char) => {
+      const characteristicName = char['ns2:name'];
+      const matchResult =
+        this.characteristicMatcherService.findBestMatch(characteristicName);
+
+      const baseCharacteristic = {
+        code: char['ns2:code'],
+        name: characteristicName,
+        value: this.extractCharacteristicValue(char['ns2:values']),
+        type: char['ns2:type'],
+        kind: char['ns2:kind'],
+        okeiCode: char['ns2:OKEI']?.['ns3:code'],
+        okeiName: char['ns2:OKEI']?.['ns3:name'],
+      };
+
+      if (matchResult.matched) {
+        this.logger.debug(
+          `Matched characteristic "${characteristicName}" to "${matchResult.normalizedName}" (similarity: ${matchResult.similarity.toFixed(3)})`,
+        );
+        return {
+          ...baseCharacteristic,
+          normalizedName: matchResult.normalizedName,
+          matchSimilarity: matchResult.similarity,
+          isMatched: true,
+        };
+      } else {
+        this.logger.debug(
+          `No suitable match found for characteristic "${characteristicName}" (best similarity: ${matchResult.similarity.toFixed(3)})`,
+        );
+        return {
+          ...baseCharacteristic,
+          normalizedName: null,
+          matchSimilarity: matchResult.similarity,
+          isMatched: false,
+        };
+      }
+    });
   }
 
   private extractCharacteristicValue(values: any): string {
@@ -173,15 +320,18 @@ export class XmlParserService {
       valueItems = [valueItems];
     }
 
-    return valueItems.map(value => {
-      if (value['ns2:qualityDescription']) {
-        return value['ns2:qualityDescription'];
-      }
-      if (value['ns2:valueSet']?.['ns2:concreteValue']) {
-        return value['ns2:valueSet']['ns2:concreteValue'];
-      }
-      return '';
-    }).filter(v => v).join(', ');
+    return valueItems
+      .map((value) => {
+        if (value['ns2:qualityDescription']) {
+          return value['ns2:qualityDescription'];
+        }
+        if (value['ns2:valueSet']?.['ns2:concreteValue']) {
+          return value['ns2:valueSet']['ns2:concreteValue'];
+        }
+        return '';
+      })
+      .filter((v) => v)
+      .join(', ');
   }
 
   private extractReestrNumber(contractNumber: string): string {
@@ -191,7 +341,7 @@ export class XmlParserService {
 
   private extractDate(dateString: string): Date | undefined {
     if (!dateString) return undefined;
-    
+
     try {
       return new Date(dateString);
     } catch {

@@ -27,6 +27,15 @@ export class Characteristic {
   @Column({ nullable: true })
   okeiName: string;
 
+  @Column({ nullable: true })
+  normalizedName: string;
+
+  @Column('decimal', { precision: 5, scale: 4, nullable: true })
+  matchSimilarity: number;
+
+  @Column({ type: 'boolean', default: false })
+  isMatched: boolean;
+
   @Column('uuid')
   modelVariantId: string;
 

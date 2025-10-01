@@ -6,13 +6,16 @@ import {
   Contract, 
   Model, 
   ModelVariant, 
-  Characteristic 
+  Characteristic,
+  ModelContractMapping
 } from '../../database/entities';
 import { XmlParserService } from './services/xml-parser.service';
 import { ContractStorageService } from './services/contract-storage.service';
 import { ContractParserService } from './services/contract-parser.service';
 import { ContractListParserService } from './services/contract-list-parser.service';
 import { ContractFileDownloaderService } from './services/contract-file-downloader.service';
+import { CharacteristicMatcherService } from './services/characteristic-matcher.service';
+import { ModelNormalizerService } from './services/model-normalizer.service';
 import { ParserController } from './controllers/parser.controller';
 import { DataController } from './controllers/data.controller';
 
@@ -25,6 +28,7 @@ import { DataController } from './controllers/data.controller';
       Model,
       ModelVariant,
       Characteristic,
+      ModelContractMapping,
     ]),
   ],
   controllers: [
@@ -37,6 +41,8 @@ import { DataController } from './controllers/data.controller';
     ContractParserService,
     ContractListParserService,
     ContractFileDownloaderService,
+    CharacteristicMatcherService,
+    ModelNormalizerService,
   ],
   exports: [
     XmlParserService,
@@ -44,6 +50,8 @@ import { DataController } from './controllers/data.controller';
     ContractParserService,
     ContractListParserService,
     ContractFileDownloaderService,
+    CharacteristicMatcherService,
+    ModelNormalizerService,
   ],
 })
 export class ParserModule {}

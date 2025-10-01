@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Model, ModelVariant, Characteristic, Contract } from '../../database/entities';
+import {
+  Model,
+  ModelVariant,
+  Characteristic,
+  Contract,
+} from '../../database/entities';
 import * as fs from 'fs';
 import * as path from 'path';
 const XLSX = require('xlsx');
@@ -9,7 +14,12 @@ const XLSX = require('xlsx');
 interface ReportData {
   modelName: string;
   certificateName: string;
-  characteristics: { [characteristicName: string]: Array<{ value: string; contractNumber: string }> };
+  characteristics: {
+    [characteristicName: string]: Array<{
+      value: string;
+      contractNumber: string;
+    }>;
+  };
 }
 
 @Injectable()
@@ -54,9 +64,12 @@ export class ReportsService {
       for (const char of characteristics) {
         if (!char.modelVariant?.model || !char.modelVariant?.contract) continue;
 
-        const modelName = char.modelVariant.model.name;
+        const modelName =
+          char.modelVariant.model.normalizedName ||
+          char.modelVariant.model.name;
         const certificateName = char.modelVariant.model.certificateName || '';
         const charName = char.name;
+
         const charValue = char.value;
         const contractNumber = char.modelVariant.contract.contractNumber;
 
@@ -82,7 +95,8 @@ export class ReportsService {
 
         // Check if this value-contract combination already exists
         const existing = reportData[key].characteristics[charName].find(
-          item => item.value === charValue && item.contractNumber === contractNumber
+          (item) =>
+            item.value === charValue && item.contractNumber === contractNumber,
         );
 
         if (!existing) {
@@ -94,7 +108,10 @@ export class ReportsService {
       }
 
       // Convert to CSV format
-      const csvContent = this.generateCSV(reportData, Array.from(allCharacteristicNames));
+      const csvContent = this.generateCSV(
+        reportData,
+        Array.from(allCharacteristicNames),
+      );
 
       // Save to file
       const reportsDir = path.join(process.cwd(), 'reports');
@@ -104,11 +121,13 @@ export class ReportsService {
 
       const filename = `summary_report_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
       const filePath = path.join(reportsDir, filename);
-      
+
       fs.writeFileSync(filePath, csvContent, 'utf-8');
 
       this.logger.log(`Summary report generated: ${filePath}`);
-      this.logger.log(`Report contains ${Object.keys(reportData).length} models and ${allCharacteristicNames.size} characteristics`);
+      this.logger.log(
+        `Report contains ${Object.keys(reportData).length} models and ${allCharacteristicNames.size} characteristics`,
+      );
 
       return filePath;
     } catch (error) {
@@ -146,7 +165,9 @@ export class ReportsService {
       for (const char of characteristics) {
         if (!char.modelVariant?.model || !char.modelVariant?.contract) continue;
 
-        const modelName = char.modelVariant.model.name;
+        const modelName =
+          char.modelVariant.model.normalizedName ||
+          char.modelVariant.model.name;
         const certificateName = char.modelVariant.model.certificateName || '';
         const charName = char.name;
         const charValue = char.value;
@@ -174,7 +195,8 @@ export class ReportsService {
 
         // Check if this value-contract combination already exists
         const existing = reportData[key].characteristics[charName].find(
-          item => item.value === charValue && item.contractNumber === contractNumber
+          (item) =>
+            item.value === charValue && item.contractNumber === contractNumber,
         );
 
         if (!existing) {
@@ -188,16 +210,21 @@ export class ReportsService {
       // Log debugging info
       this.logger.log(`Models found: ${Object.keys(reportData).join(', ')}`);
       this.logger.log(`Total models: ${Object.keys(reportData).length}`);
-      
+
       // Convert to XLSX format
-      const worksheetData = this.generateWorksheetData(reportData, Array.from(allCharacteristicNames));
+      const worksheetData = this.generateWorksheetData(
+        reportData,
+        Array.from(allCharacteristicNames),
+      );
       const workbook = XLSX.utils.book_new();
       const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
 
       // Auto-size columns
       const colWidths = worksheetData[0].map((_, colIndex) => {
         const maxLength = Math.max(
-          ...worksheetData.map(row => row[colIndex] ? row[colIndex].toString().length : 0)
+          ...worksheetData.map((row) =>
+            row[colIndex] ? row[colIndex].toString().length : 0,
+          ),
         );
         return { wch: Math.min(maxLength + 2, 50) }; // Max width 50 characters
       });
@@ -217,16 +244,23 @@ export class ReportsService {
       XLSX.writeFile(workbook, filePath);
 
       this.logger.log(`XLSX summary report generated: ${filePath}`);
-      this.logger.log(`Report contains ${Object.keys(reportData).length} models and ${allCharacteristicNames.size} characteristics`);
+      this.logger.log(
+        `Report contains ${Object.keys(reportData).length} models and ${allCharacteristicNames.size} characteristics`,
+      );
 
       return filePath;
     } catch (error) {
-      this.logger.error(`Error generating XLSX summary report: ${error.message}`);
+      this.logger.error(
+        `Error generating XLSX summary report: ${error.message}`,
+      );
       throw error;
     }
   }
 
-  private generateWorksheetData(reportData: { [key: string]: ReportData }, characteristicNames: string[]): any[][] {
+  private generateWorksheetData(
+    reportData: { [key: string]: ReportData },
+    characteristicNames: string[],
+  ): any[][] {
     const worksheetData: any[][] = [];
 
     // Create header row
@@ -235,18 +269,20 @@ export class ReportsService {
 
     // Create data rows
     const keys = Object.keys(reportData).sort();
-    this.logger.log(`Processing ${keys.length} model+certificate combinations for worksheet`);
-    
+    this.logger.log(
+      `Processing ${keys.length} model+certificate combinations for worksheet`,
+    );
+
     for (const key of keys) {
       const data = reportData[key];
       const row: any[] = [data.modelName, data.certificateName || ''];
 
       for (const charName of characteristicNames) {
         const charData = data.characteristics[charName] || [];
-        
+
         // Group values and their contracts
         const valueGroups: { [value: string]: string[] } = {};
-        
+
         for (const item of charData) {
           if (!valueGroups[item.value]) {
             valueGroups[item.value] = [];
@@ -265,7 +301,8 @@ export class ReportsService {
         // Excel has a 32,767 character limit per cell
         const maxLength = 32767;
         if (cellContent.length > maxLength) {
-          cellContent = cellContent.substring(0, maxLength - 20) + '... [truncated]';
+          cellContent =
+            cellContent.substring(0, maxLength - 20) + '... [truncated]';
         }
 
         row.push(cellContent || '');
@@ -274,11 +311,16 @@ export class ReportsService {
       worksheetData.push(row);
     }
 
-    this.logger.log(`Generated worksheet with ${worksheetData.length} rows (including header)`);
+    this.logger.log(
+      `Generated worksheet with ${worksheetData.length} rows (including header)`,
+    );
     return worksheetData;
   }
 
-  private generateCSV(reportData: { [key: string]: ReportData }, characteristicNames: string[]): string {
+  private generateCSV(
+    reportData: { [key: string]: ReportData },
+    characteristicNames: string[],
+  ): string {
     const csvLines: string[] = [];
 
     // Create header row
@@ -288,14 +330,17 @@ export class ReportsService {
     // Create data rows
     for (const key of Object.keys(reportData).sort()) {
       const data = reportData[key];
-      const row: string[] = [this.csvEscapeCell(data.modelName), this.csvEscapeCell(data.certificateName || '')];
+      const row: string[] = [
+        this.csvEscapeCell(data.modelName),
+        this.csvEscapeCell(data.certificateName || ''),
+      ];
 
       for (const charName of characteristicNames) {
         const charData = data.characteristics[charName] || [];
-        
+
         // Group values and their contracts
         const valueGroups: { [value: string]: string[] } = {};
-        
+
         for (const item of charData) {
           if (!valueGroups[item.value]) {
             valueGroups[item.value] = [];
@@ -321,17 +366,17 @@ export class ReportsService {
   }
 
   private csvEscape(values: string[]): string[] {
-    return values.map(value => this.csvEscapeCell(value));
+    return values.map((value) => this.csvEscapeCell(value));
   }
 
   private csvEscapeCell(value: string): string {
     if (!value) return '""';
-    
+
     // If the value contains comma, newline, or quotes, wrap in quotes and escape internal quotes
     if (value.includes(',') || value.includes('\n') || value.includes('"')) {
       return `"${value.replace(/"/g, '""')}"`;
     }
-    
+
     return value;
   }
 
@@ -340,11 +385,12 @@ export class ReportsService {
     totalCharacteristics: number;
     totalContracts: number;
   }> {
-    const [totalModels, totalCharacteristics, totalContracts] = await Promise.all([
-      this.modelRepository.count(),
-      this.characteristicRepository.count(),
-      this.contractRepository.count(),
-    ]);
+    const [totalModels, totalCharacteristics, totalContracts] =
+      await Promise.all([
+        this.modelRepository.count(),
+        this.characteristicRepository.count(),
+        this.contractRepository.count(),
+      ]);
 
     return {
       totalModels,

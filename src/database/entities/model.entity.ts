@@ -9,6 +9,9 @@ export class Model {
   @Column()
   name: string;
 
+  @Column({ nullable: true, unique: true })
+  normalizedName: string;
+
   @Column({ nullable: true })
   ktruCode: string;
 

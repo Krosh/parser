@@ -1,0 +1,478 @@
+Clivia 90Ехр
+Clivia 90
+Clivia 90Т
+Aloka Arietta 850
+Aloka Lisendo 880
+LOGIQ e TP
+LOGIQ e TB
+Logiq S8
+Logiq S8 (версия R2)
+Logiq S8 (версия R3)
+Logiq S8 (версия R4)
+Logiq e
+ARIETTA S70
+ARIETTA 65
+ARIETTA 50
+ARIETTA S60
+Voluson S6
+Voluson S8
+Arietta 750
+Arietta 750LE
+Arietta 750SE
+Arietta 750VE
+HITACHI HI VISION 900
+Arietta V60
+Arietta V70
+ЕЛС500
+ЕЛС500Т
+ЕЛС500Мини
+E-CUBE i7
+S50Elite
+S60
+S60Exp
+X1
+X3
+X5
+Е1
+Е2
+Е3
+Е5
+S11
+S35
+S40
+S40 Exp
+S40 Pro
+S2N
+S8Exp
+S9
+S30
+S2
+S2BW
+S6N
+S7
+S8N
+S9Pro
+S9Exp
+S15
+S20
+S20 Ехр
+S20 Pro
+MyLab Seven
+MyLab X5
+MyLab X6
+MyLab X7
+E-CUBE 5
+HI VISION Ascendus
+HI VISION Preirus
+MT POINT "U-100"
+Voluson E8
+SonoSite EDGE II
+ACUSON X300PE
+DC-70
+DC-70T
+DC-70Pro
+DC-70Exp
+DC-70S
+Logiq F6
+Logiq F8
+Logiq F8 Expert
+HS50-RUS
+HS60-RUS
+AcuVista RS880b
+AcuVista RS880c
+AcuVista RS880d
+AcuVista RS880f
+AcuVista RS880i
+AcuVista RS880t
+MyLab ClassC
+SonoSite S II
+MyLab One
+HD7
+HD5
+Logiq V1
+Logiq V2
+Venue 50
+Venue Go
+EB-1970UK
+EB19-J10U
+ACCUVIX A30-RUS
+MySono U6-RUS
+ACCUVIX V10-RUS
+SONOACE X8-RUS
+Sonara
+Sonara/tek
+PT60A-RUS
+Aquarius TT
+EVOX
+TETRA-NIRS
+MINI-D
+VISER
+DC-28
+DC-30
+DC-32
+ACCUVIX XG-RUS
+SONOACE R7-RUS
+SONOACE R5-RUS
+EKO 7-RUS
+SA R3-RUS
+SONOACE X6-RUS
+UGEO 
+H60-RUS
+Sonoview
+Sonoview PRO
+Logiq V3
+Logiq V5
+Logiq V5 Expert
+Mirror2
+Mirror2 plus
+Mirror2 HD
+TE7
+Voluson Signature 18
+Voluson Signature 20
+Resona R9 Exp
+Resona R9 Pro
+Resona R9S
+Resona R7
+Resona R7 Exp
+Resona R7 Pro
+QBit 1
+QBit 2
+QBit 3
+QBit 4
+QBit 5
+QBit 6
+QBit 7
+QBit 8
+QBit 9
+QBit 10
+QBit 11
+QBit 12
+СОНОРУС 300
+СОНОРУС 500
+СОНОРУС 700
+LOGIQ P9
+РуСкан 75М - исполнение 00
+РуСкан 75М - исполнение 01
+Voluson P8
+Voluson P6
+HM70A-RUS
+НМ70А EXPERT-RUS
+НМ70 EVO-RUS
+Apogee 5300
+Apogee 5300Pro
+Apogee 5300Exp
+Apogee 5500
+Apogee 5500Pro
+Apogee 5500Exp
+Apogee 5800
+Apogee 5800Exp
+Мобильный УЗИ-сканер-В1
+УЗИ-ЭЛЕКТРОН
+VINNO 8
+VINNO 6
+VINNO 5
+W9-RUS
+Voluson E6
+Voluson E6
+Voluson E6
+ACUSON Juniper
+V8-RUS
+Vivid S60N
+Vivid S70N
+Consona N9 Super
+Consona N9P
+Consona N7P
+Consona N7Q
+Consona N7T
+Consona N7K
+Consona N7V 
+ЕЛС-Wisonic L
+ЕЛС-Wisonic C
+X-CUBE 90
+X-CUBE 70
+Vivid iq Value console
+Vivid iq Premium console
+Vivid iq 4D console
+Vivid iq PoC console
+Versana Premier
+Vivid T8
+Vivid T9
+LOGIQ P9
+LOGIQ P8
+LOGIQ P7
+LOGIQ P10
+5000 Compact
+5300
+5500
+5500 CV
+Voluson Expert 18
+Voluson Expert 20
+Voluson Expert 22
+ACUSON NX2
+ACUSON NX2 Elite
+Lumify
+VINNO G55
+VINNO G55E
+VINNO G55P
+VINNO M55E
+Voluson S10
+Voluson S10 Expert
+РуСкан 50
+Apache C62
+Apache L154
+ACUSON P500
+SONOST-2000
+SONOST-3000
+Cetus 30
+Cetus 30V
+Cetus 30Ехр
+Cetus 35
+Cetus 35Exp
+Cetus 40
+Cetus 40V
+Cetus 40Exp
+Cetus 45
+Cetus 45Exp
+Danus 20
+Danus 20V
+Danus 20Exp
+Danus 30
+Danus 30V
+Danus 30Ехр
+Danus 40
+Danus 40V
+Danus 40Exp
+Finus 45
+Finus 45V
+Finus 50
+Finus 50V
+Finus 55
+Finus 60
+Finus 60V
+Finus 60Ехр
+Finus 70
+Finus 70V
+Finus 70Exp
+ACUSON Redwood
+Vivid E95
+Vivid E90
+Vivid E80
+ACUSON NX3
+ACUSON NX3 Elite
+ClearVue 350
+ClearVue 550
+V7-RUS
+V6-RUS
+i3
+i6
+i7
+i8
+i9
+Sonotouch 10
+Sonotouch 20
+Sonotouch 30
+Sonotouch 50
+Sonotouch 60
+Sonotouch 80
+CX50
+Affiniti 30
+Affiniti 50
+Affiniti 70
+Affiniti CVx
+РуСкан 60
+EPIQ
+EPIQ 5
+EPIQ 7
+EPIQ Elite
+СОНОМЕД 300М-1С
+СОНОМЕД 300М-1П
+СОНОМЕД 300М-1В
+СОНОМЕД 300М-2С
+СОНОМЕД 300М-2П
+СОНОМЕД 300М-2В
+СОНОМЕД 315-Р
+СОНОМЕД 315-С
+СОНОМЕД 315-В
+РуСкан 70П
+РуСкан 65
+РуСкан 65М
+iLivTouch Рго1000
+iLivTouch Рго3000
+Consona N9
+Consona N9 Pro
+Consona N9S
+Consona N9 Exp
+Consona N9 Elite
+Recho N9
+Resona N9
+Consona N8
+Consona N8 Pro
+Consona N8S
+Consona N8 Exp
+Consona N8 Elite
+Consona N8 Ultra
+Consona N8 Plus
+Consona N6
+Consona N6 Pro
+Consona N6S
+Consona N6 Exp
+Consona N6 Elite
+Consona N6 Ultra
+Consona N6 Plus
+LOGIQ E10
+Apogee 1100
+Apogee 1100Exp
+Apogee 1100Lite
+Apogee 1100Diamond
+Apogee 1100Neo
+Aplio i700
+Aplio i800
+Aplio i900
+EM7
+EM-80I
+EM-80S
+EM-80 Pro
+SensUS Touch
+Clover 60
+Aplio a550
+Aplio a450
+СмартСкан 15А
+СмартСкан 15
+СмартСкан 11А
+СмартСкан 11
+СмартСкан 7А
+СмартСкан 7
+СмартСкан 15АТ
+СмартСкан 15T
+Resona 7
+Resona 7EXP
+Resona 7S
+Resona 6
+Resona 6PRO
+Resona 6EXP
+Resona 6S
+EU-M60
+EU-C60
+EU-MA
+BioCon-700
+MRC-700
+MRC-700N
+DC-90
+DC-90 Echo
+DC-90 Pro
+Hepatus 5
+Hepatus 5S
+Hepatus 6
+Hepatus 6S
+Hepatus 6T
+Hepatus 7
+Hepatus 7S
+Wi-3 HAL-RAR
+ACUSON SC2000
+Z60
+Z60T
+Z60S
+Z60W
+Z60 Pro
+3300 G
+3300 W
+3300 C
+Versana Active
+М9
+М9Т
+М9CV
+M8
+M8GI
+Aplio a (CUS-AA000)
+Миндрей Консона С60
+C-60
+C-60 Pro
+OptiCross HD 60 МГц
+HiScan Touch Basic
+HiScan Touch Full
+Resona 19
+Resona I9
+Resona I9 Exp
+Resona I9S
+Resona I9T
+Resona I9 Easi
+Resona I9 Nasa
+Imagyn I9
+Imagyn I9 S
+Imagyn I9 Easi
+Anesus I9
+Anesus I9 Easi
+Eagus I9
+MyLab Twice
+MyLab 9 eXP
+М6T
+М58
+М6
+М6 Exp
+Terason uSmart 3200Т
+Terason uSmaiT 3300
+Uprobe-C6C
+Uprobe-C5C
+Uprobe-C5LC
+Uprobe-C5TC
+Uprobe-C5PL
+Uprobe-L6C
+Uprobe-L5C
+APLIO 400
+XARIO 200 (модель TUS-X200)
+APLIO 300
+XARIO 100G
+XARIO 200G
+Smart Echo 128
+Smart Echo 128D
+E-CUBE 8
+MyLab Omega
+MyLab Sigma
+MyLab X8
+MyLab X8 eXP
+ABSOLU
+ME7
+ME7 Exp
+Anesus ME7
+Anesus ME7S
+Anesus ME7T
+DC-80
+DC-80S
+DC-80 PRO
+iLivTouch FT100
+iLivTouch FT200
+DC-40
+DC-45
+DC-40 Pro
+DC-40 Exp
+DC-55
+DC-60
+DC-60 Pro
+Vscan Extend
+Acclarix AX4
+Acclarix AX3
+U60
+USCOM 1A
+SONOLINE В
+SONOLINE C
+ACUSON X700
+ACUSON Freestyle
+ACUSON S2000
+ACUSON S2000 ABVS
+ACUSON S1000
+ACUSON S3000
+ACUSON X600
+VuPad
+VuMax HD
+КХ5600
+V7
+ACUSON Sequoia
+Eye Cubed
+Vivid S60
+Vivid S70
+Acclarix AX8
+Versana Essential
+AcuVista Grace
+SONON 300C
+SONON 300L
+CHISON
