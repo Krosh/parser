@@ -286,16 +286,14 @@ export function extractModelNameFromCertificate(
         /вариант\s+исполнения:\s*([A-Za-zА-Яа-я0-9\s\-\.ёЁ]+?)(?:\s+по\s+ТУ|\s*,|$)/i,
       name: 'вариант исполнения с ТУ',
     },
-    // Паттерн для "в исполнении ModelName" 
+    // Паттерн для "в исполнении ModelName"
     {
-      pattern:
-        /в\s+исполнении\s+([A-Za-zА-Яа-я0-9\s\-\.ёЁ]+?)(?:\s*,|$)/i,
+      pattern: /в\s+исполнении\s+([A-Za-zА-Яа-я0-9\s\-\.ёЁ]+?)(?:\s*,|$)/i,
       name: 'в исполнении',
     },
     // Паттерн для "вариант исполнения Consona N7 Exp" без двоеточия
     {
-      pattern:
-        /вариант\s+исполнения\s+([A-Za-zА-Яа-я0-9\s\-\.ёЁ]+?)(?:\s*$)/i,
+      pattern: /вариант\s+исполнения\s+([A-Za-zА-Яа-я0-9\s\-\.ёЁ]+?)(?:\s*$)/i,
       name: 'вариант исполнения без двоеточия',
     },
     {
@@ -542,7 +540,9 @@ export function extractModelNameFromCertificate(
   }
 
   // Если ни один паттерн не дал результат из эталонного списка, пробуем smart fallback
-  const smartFallbackResult = findBestModelInCertificate(preprocessedCertificateName);
+  const smartFallbackResult = findBestModelInCertificate(
+    preprocessedCertificateName,
+  );
   if (smartFallbackResult) {
     return {
       normalizedName: smartFallbackResult,

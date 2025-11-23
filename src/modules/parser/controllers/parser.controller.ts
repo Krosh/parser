@@ -13,6 +13,8 @@ import { ContractParserService } from '../services/contract-parser.service';
 import { ContractListParserService } from '../services/contract-list-parser.service';
 import { ContractFileDownloaderService } from '../services/contract-file-downloader.service';
 import { CharacteristicMatcherService } from '../services/characteristic-matcher.service';
+import { ModelSearchService } from '../services/model-search.service';
+import { ModelSearchDto } from '../dto/model-search.dto';
 
 @Controller('parser')
 export class ParserController {
@@ -23,6 +25,7 @@ export class ParserController {
     private contractListParserService: ContractListParserService,
     private contractFileDownloaderService: ContractFileDownloaderService,
     private characteristicMatcherService: CharacteristicMatcherService,
+    private modelSearchService: ModelSearchService,
   ) {}
 
   @Post('parse-file')
@@ -381,6 +384,39 @@ export class ParserController {
       this.logger.error(`Error in batch processing: ${error.message}`);
       throw new InternalServerErrorException(
         `Failed to batch process: ${error.message}`,
+      );
+    }
+  }
+
+  @Post('models/search')
+  async searchModels(@Body() searchDto: ModelSearchDto) {
+    try {
+      const models = await this.modelSearchService.searchModels(searchDto);
+      return {
+        success: true,
+        data: models,
+        count: models.length,
+      };
+    } catch (error) {
+      this.logger.error(`Error searching models: ${error.message}`);
+      throw new InternalServerErrorException(
+        `Failed to search models: ${error.message}`,
+      );
+    }
+  }
+
+  @Get('characteristics')
+  async getAvailableCharacteristics() {
+    try {
+      const characteristics = await this.modelSearchService.getAvailableCharacteristics();
+      return {
+        success: true,
+        data: characteristics,
+      };
+    } catch (error) {
+      this.logger.error(`Error fetching characteristics: ${error.message}`);
+      throw new InternalServerErrorException(
+        `Failed to fetch characteristics: ${error.message}`,
       );
     }
   }

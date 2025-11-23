@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"], select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .autocomplete-wrapper {
+            position: relative;
+        }
+        .characteristic-filter {
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .filter-row {
+            display: flex;
+            gap: 15px;
+            align-items: end;
+        }
+        .filter-row > div {
+            flex: 1;
+        }
+        .remove-filter {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            height: 42px;
+        }
+        .remove-filter:hover {
+            background-color: #c82333;
+        }
+        .add-filter-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        .add-filter-btn:hover {
+            background-color: #218838;
+        }
+        .search-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        .search-btn:hover {
+            background-color: #0056b3;
+        }
+        .results {
+            margin-top: 30px;
+        }
+        .results-header {
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .model-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            background-color: #ffffff;
+        }
+        .model-name {
+            font-weight: bold;
+            font-size: 18px;
+            color: #007bff;
+            margin-bottom: 10px;
+        }
+        .model-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .detail-item {
+            background-color: #f8f9fa;
+            padding: 8px;
+            border-radius: 3px;
+            border-left: 3px solid #007bff;
+        }
+        .detail-label {
+            font-weight: bold;
+            color: #666;
+            font-size: 12px;
+        }
+        .detail-value {
+            color: #333;
+        }
+        .characteristics {
+            margin-top: 15px;
+        }
+        .characteristics h4 {
+            color: #666;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .characteristic-item {
+            background-color: #e9ecef;
+            padding: 5px 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .characteristic-autocomplete {
+            position: relative;
+        }
+        .autocomplete-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .autocomplete-suggestion {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        .autocomplete-suggestion:hover {
+            background-color: #f5f5f5;
+        }
+        .autocomplete-suggestion.highlighted {
+            background-color: #007bff;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{title}}</h1>
+        
+        {{#if error}}
+            <div class="error">{{error}}</div>
+        {{/if}}
+
+        <form id="searchForm">
+            <div class="form-group">
+                <label for="modelName">Название модели (частичное совпадение):</label>
+                <input type="text" id="modelName" name="modelName" placeholder="Введите название модели...">
+            </div>
+
+            <div class="form-group">
+                <label for="ktruCode">Код КТРУ:</label>
+                <input type="text" id="ktruCode" name="ktruCode" placeholder="Введите код КТРУ...">
+            </div>
+
+            <div class="form-group">
+                <label>Фильтры по характеристикам:</label>
+                <div id="characteristicFilters">
+                    <!-- Динамически добавляемые фильтры -->
+                </div>
+                <button type="button" class="add-filter-btn" onclick="addCharacteristicFilter()">
+                    Добавить фильтр по характеристике
+                </button>
+            </div>
+
+            <button type="submit" class="search-btn">Найти модели</button>
+        </form>
+
+        <div class="results" id="results" style="display: none;">
+            <div class="results-header">
+                <h2>Результаты поиска: <span id="resultCount">0</span> моделей</h2>
+            </div>
+            <div id="modelsList">
+                <!-- Результаты поиска -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const characteristics = {{{json characteristics}}};
+        const operators = {{{json operators}}};
+
+        let filterIndex = 0;
+
+        function addCharacteristicFilter() {
+            const filtersContainer = document.getElementById('characteristicFilters');
+            
+            const filterDiv = document.createElement('div');
+            filterDiv.className = 'characteristic-filter';
+            filterDiv.innerHTML = `
+                <div class="filter-row">
+                    <div class="autocomplete-wrapper">
+                        <label>Характеристика:</label>
+                        <input type="text" 
+                               name="characteristics[${filterIndex}][code]" 
+                               class="characteristic-autocomplete" 
+                               placeholder="Введите название характеристики..." 
+                               required 
+                               autocomplete="off">
+                        <div class="autocomplete-suggestions" style="display: none;"></div>
+                    </div>
+                    <div>
+                        <label>Оператор:</label>
+                        <select name="characteristics[${filterIndex}][operator]" required>
+                            ${operators.map(op => 
+                                `<option value="${op.value}">${op.label}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label>Значение:</label>
+                        <input type="text" name="characteristics[${filterIndex}][value]" placeholder="Введите значение..." required>
+                    </div>
+                    <div>
+                        <button type="button" class="remove-filter" onclick="removeFilter(this)">Удалить</button>
+                    </div>
+                </div>
+            `;
+            
+            filtersContainer.appendChild(filterDiv);
+            
+            // Настраиваем автокомплит для нового поля
+            const newInput = filterDiv.querySelector('.characteristic-autocomplete');
+            setupAutocomplete(newInput);
+            
+            filterIndex++;
+        }
+
+        function removeFilter(button) {
+            button.closest('.characteristic-filter').remove();
+        }
+
+        document.getElementById('searchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const searchData = {
+                modelName: formData.get('modelName') || undefined,
+                ktruCode: formData.get('ktruCode') || undefined,
+                characteristics: []
+            };
+
+            // Собираем характеристики
+            for (let i = 0; i < filterIndex; i++) {
+                const code = formData.get(`characteristics[${i}][code]`);
+                const operator = formData.get(`characteristics[${i}][operator]`);
+                const value = formData.get(`characteristics[${i}][value]`);
+                
+                if (code && operator && value) {
+                    searchData.characteristics.push({ code, operator, value });
+                }
+            }
+
+            // Показываем индикатор загрузки
+            const resultsDiv = document.getElementById('results');
+            const modelsListDiv = document.getElementById('modelsList');
+            
+            resultsDiv.style.display = 'block';
+            modelsListDiv.innerHTML = '<div class="loading">Поиск моделей...</div>';
+
+            try {
+                const response = await fetch('/model-search/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(searchData)
+                });
+
+                const result = await response.json();
+                displayResults(result);
+            } catch (error) {
+                modelsListDiv.innerHTML = `<div class="error">Ошибка поиска: ${error.message}</div>`;
+            }
+        });
+
+        function displayResults(result) {
+            const resultCountSpan = document.getElementById('resultCount');
+            const modelsListDiv = document.getElementById('modelsList');
+
+            if (!result.success) {
+                modelsListDiv.innerHTML = `<div class="error">Ошибка: ${result.error}</div>`;
+                return;
+            }
+
+            resultCountSpan.textContent = result.count;
+
+            if (result.count === 0) {
+                modelsListDiv.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">Модели не найдены</div>';
+                return;
+            }
+
+            modelsListDiv.innerHTML = result.data.map(model => {
+                return `
+                    <div class="model-card">
+                        <div class="model-name">${model.name || 'Без названия'}</div>
+                        <div class="model-details">
+                            ${model.normalizedName ? `<div class="detail-item"><div class="detail-label">Нормализованное название:</div><div class="detail-value">${model.normalizedName}</div></div>` : ''}
+                            ${model.ktruCode ? `<div class="detail-item"><div class="detail-label">Код КТРУ:</div><div class="detail-value">${model.ktruCode}</div></div>` : ''}
+                            ${model.ktruName ? `<div class="detail-item"><div class="detail-label">Название КТРУ:</div><div class="detail-value">${model.ktruName}</div></div>` : ''}
+                            ${model.originCountryName ? `<div class="detail-item"><div class="detail-label">Страна происхождения:</div><div class="detail-value">${model.originCountryName}</div></div>` : ''}
+                        </div>
+                        ${model.variants && model.variants.length > 0 ? renderVariants(model.variants) : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderVariants(variants) {
+            return variants.map(variant => {
+                return `
+                    <div class="characteristics">
+                        <h4>Вариант модели (Количество: ${variant.quantity}, Цена: ${variant.price})</h4>
+                        ${variant.characteristics && variant.characteristics.length > 0 ? 
+                            variant.characteristics.map(char => 
+                                `<div class="characteristic-item">
+                                    <span><strong>${char.name}</strong> (${char.code})</span>
+                                    <span>${char.value} ${char.okeiName || ''}</span>
+                                </div>`
+                            ).join('') : 
+                            '<div style="color: #666; font-style: italic;">Характеристики не найдены</div>'
+                        }
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Функции для автокомплита
+        function setupAutocomplete(input) {
+            const suggestionsDiv = input.parentNode.querySelector('.autocomplete-suggestions');
+            let currentSelection = -1;
+            let filteredCharacteristics = [];
+
+            input.addEventListener('input', function() {
+                const value = this.value.toLowerCase();
+                if (value.length < 2) {
+                    suggestionsDiv.style.display = 'none';
+                    return;
+                }
+
+                filteredCharacteristics = characteristics.filter(char => 
+                    char.name.toLowerCase().includes(value) || char.code.toLowerCase().includes(value)
+                );
+
+                if (filteredCharacteristics.length === 0) {
+                    suggestionsDiv.style.display = 'none';
+                    return;
+                }
+
+                suggestionsDiv.innerHTML = filteredCharacteristics.map((char, index) => 
+                    `<div class="autocomplete-suggestion" data-code="${char.code}" data-index="${index}">
+                        ${char.name} (${char.code})
+                    </div>`
+                ).join('');
+                
+                suggestionsDiv.style.display = 'block';
+                currentSelection = -1;
+            });
+
+            input.addEventListener('keydown', function(e) {
+                if (suggestionsDiv.style.display === 'none') return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    currentSelection = Math.min(currentSelection + 1, filteredCharacteristics.length - 1);
+                    updateSelection();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    currentSelection = Math.max(currentSelection - 1, -1);
+                    updateSelection();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (currentSelection >= 0) {
+                        selectSuggestion(currentSelection);
+                    }
+                } else if (e.key === 'Escape') {
+                    suggestionsDiv.style.display = 'none';
+                    currentSelection = -1;
+                }
+            });
+
+            suggestionsDiv.addEventListener('click', function(e) {
+                const suggestion = e.target.closest('.autocomplete-suggestion');
+                if (suggestion) {
+                    const index = parseInt(suggestion.dataset.index);
+                    selectSuggestion(index);
+                }
+            });
+
+            function updateSelection() {
+                const suggestions = suggestionsDiv.querySelectorAll('.autocomplete-suggestion');
+                suggestions.forEach((s, i) => {
+                    s.classList.toggle('highlighted', i === currentSelection);
+                });
+            }
+
+            function selectSuggestion(index) {
+                if (index >= 0 && index < filteredCharacteristics.length) {
+                    const selected = filteredCharacteristics[index];
+                    input.value = selected.code;
+                    suggestionsDiv.style.display = 'none';
+                    currentSelection = -1;
+                }
+            }
+
+            // Скрываем подсказки при клике вне
+            document.addEventListener('click', function(e) {
+                if (!input.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+                    suggestionsDiv.style.display = 'none';
+                }
+            });
+        }
+
+        // Добавляем один фильтр по умолчанию
+        addCharacteristicFilter();
+    </script>
+</body>
+</html>

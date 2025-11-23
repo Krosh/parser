@@ -16,8 +16,10 @@ import { ContractListParserService } from './services/contract-list-parser.servi
 import { ContractFileDownloaderService } from './services/contract-file-downloader.service';
 import { CharacteristicMatcherService } from './services/characteristic-matcher.service';
 import { ModelNormalizerService } from './services/model-normalizer.service';
+import { ModelSearchService } from './services/model-search.service';
 import { ParserController } from './controllers/parser.controller';
 import { DataController } from './controllers/data.controller';
+import { ModelSearchController } from './controllers/model-search.controller';
 
 @Module({
   imports: [
@@ -34,6 +36,7 @@ import { DataController } from './controllers/data.controller';
   controllers: [
     ParserController,
     DataController,
+    ModelSearchController,
   ],
   providers: [
     XmlParserService,
@@ -43,6 +46,7 @@ import { DataController } from './controllers/data.controller';
     ContractFileDownloaderService,
     CharacteristicMatcherService,
     ModelNormalizerService,
+    ModelSearchService,
   ],
   exports: [
     XmlParserService,
