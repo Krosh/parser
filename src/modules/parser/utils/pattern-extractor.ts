@@ -20,10 +20,13 @@ function loadReferenceModelNames(): Set<string> {
     const content = fs.readFileSync(filePath, 'utf-8');
     const modelNames = content
       .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
-    
-    referenceModelNames = new Set(modelNames);
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    referenceModelNames = new Set([
+      ...modelNames,
+      ...modelNames.map((item) => item.toUpperCase()),
+    ]);
     return referenceModelNames;
   } catch (error) {
     console.warn('Не удалось загрузить эталонный список моделей:', error);
@@ -40,12 +43,12 @@ function loadTransliteratedReferenceModelNames(): Set<string> {
 
   const originalNames = loadReferenceModelNames();
   transliteratedReferenceModelNames = new Set();
-  
+
   for (const name of originalNames) {
     const transliterated = normalizeCyrillicToLatin(name);
     transliteratedReferenceModelNames.add(transliterated);
   }
-  
+
   return transliteratedReferenceModelNames;
 }
 
@@ -154,13 +157,164 @@ export function normalizeCyrillicToLatin(text: string): string {
   return normalized;
 }
 
-export function extractModelNameFromCertificate(certificateName) {
+// Функция для поиска лучшего совпадения модели в сертификате (smart fallback)
+function findBestModelInCertificate(certificateName: string): string | null {
+  const referenceModelNames = loadReferenceModelNames();
+
+  let bestMatch = '';
+  let bestScore = 0;
+  const SMART_FALLBACK_THRESHOLD = 0.7; // Минимальный порог для умного fallback
+
+  // Нормализуем входную строку для поиска
+  const normalizedCertificate = certificateName.toLowerCase();
+
+  for (const modelName of referenceModelNames) {
+    // Проверяем, содержится ли название модели в сертификате
+    const normalizedModel = modelName.toLowerCase();
+
+    // 1. Точное вхождение (высший приоритет) - предпочитаем более длинные названия
+    if (normalizedCertificate.includes(normalizedModel)) {
+      const score = 1.0 + modelName.length / 1000; // Бонус за длину названия
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = modelName;
+      }
+      continue;
+    }
+
+    // 2. Частичное совпадение по словам
+    const modelWords = normalizedModel.split(/\s+/);
+    const certificateWords = normalizedCertificate.split(/\s+/);
+
+    let matchingWords = 0;
+    for (const modelWord of modelWords) {
+      for (const certWord of certificateWords) {
+        // Точное совпадение слова
+        if (modelWord === certWord) {
+          matchingWords += 1;
+          break;
+        }
+        // Частичное совпадение (одно слово содержит другое)
+        if (modelWord.length > 3 && certWord.includes(modelWord)) {
+          matchingWords += 0.8;
+          break;
+        }
+        if (certWord.length > 3 && modelWord.includes(certWord)) {
+          matchingWords += 0.8;
+          break;
+        }
+      }
+    }
+
+    const wordScore = matchingWords / modelWords.length;
+    if (wordScore > bestScore && wordScore >= SMART_FALLBACK_THRESHOLD) {
+      bestScore = wordScore;
+      bestMatch = modelName;
+    }
+
+    // 3. Сходство по расстоянию Левенштейна (для коротких названий)
+    if (modelName.length <= 15) {
+      const similarity = levenshteinSimilarity(
+        normalizedModel,
+        normalizedCertificate,
+      );
+      if (similarity > bestScore && similarity >= SMART_FALLBACK_THRESHOLD) {
+        bestScore = similarity;
+        bestMatch = modelName;
+      }
+    }
+  }
+
+  if (bestScore >= SMART_FALLBACK_THRESHOLD) {
+    return bestMatch;
+  }
+
+  return null;
+}
+
+// Функция для вычисления сходства по Левенштейну
+function levenshteinSimilarity(str1: string, str2: string): number {
+  const distance = levenshteinDistance(str1, str2);
+  const maxLength = Math.max(str1.length, str2.length);
+
+  if (maxLength === 0) return 1.0;
+
+  return 1 - distance / maxLength;
+}
+
+// Функция для вычисления расстояния Левенштейна
+function levenshteinDistance(str1: string, str2: string): number {
+  const matrix = Array(str2.length + 1)
+    .fill(null)
+    .map(() => Array(str1.length + 1).fill(null));
+
+  for (let i = 0; i <= str1.length; i++) {
+    matrix[0][i] = i;
+  }
+
+  for (let j = 0; j <= str2.length; j++) {
+    matrix[j][0] = j;
+  }
+
+  for (let j = 1; j <= str2.length; j++) {
+    for (let i = 1; i <= str1.length; i++) {
+      const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[j][i] = Math.min(
+        matrix[j][i - 1] + 1, // deletion
+        matrix[j - 1][i] + 1, // insertion
+        matrix[j - 1][i - 1] + indicator, // substitution
+      );
+    }
+  }
+
+  return matrix[str2.length][str1.length];
+}
+
+export function extractModelNameFromCertificate(
+  certificateName: string | null | undefined,
+) {
   if (!certificateName) return null;
 
-  let fallbackResult: any = null;
+  // Предобработка: удаляем пробелы вокруг тире
+  const preprocessedCertificateName = certificateName.replace(/\s*-\s*/g, '-');
 
   // Паттерны для извлечения названия модели из сертификата
   const patterns = [
+    // Паттерн для "вариант исполнения: ModelName по ТУ" (с техническими условиями) - высокий приоритет
+    {
+      pattern:
+        /вариант\s+исполнения:\s*([A-Za-zА-Яа-я0-9\s\-\.ёЁ]+?)(?:\s+по\s+ТУ|\s*,|$)/i,
+      name: 'вариант исполнения с ТУ',
+    },
+    // Паттерн для "в исполнении ModelName" 
+    {
+      pattern:
+        /в\s+исполнении\s+([A-Za-zА-Яа-я0-9\s\-\.ёЁ]+?)(?:\s*,|$)/i,
+      name: 'в исполнении',
+    },
+    // Паттерн для "вариант исполнения Consona N7 Exp" без двоеточия
+    {
+      pattern:
+        /вариант\s+исполнения\s+([A-Za-zА-Яа-я0-9\s\-\.ёЁ]+?)(?:\s*$)/i,
+      name: 'вариант исполнения без двоеточия',
+    },
+    {
+      pattern:
+        /вариант\s+исполнения:\s*([A-Za-z0-9\s\-\.]+?)(?:\s+с\s+принадлежностями|\s*,|$)/i,
+      name: 'вариант исполнения с двоеточием',
+    },
+    // Паттерн для "серии М с принадлежностями, варианты исполнения: ModelName" (высокий приоритет)
+    {
+      pattern:
+        /серии\s+[МM]\s+с\s+принадлежностями,?\s*варианты\s+исполнения:\s*([A-Za-zА-Яа-я0-9\s\-\.ёЁ]+?)(?:\s+Производитель|\s*,|$)/i,
+      name: 'серии М варианты исполнения',
+    },
+    // Паттерн для "в варианте исполнения: ModelName" с двоеточием до кавычек (высокий приоритет)
+    {
+      pattern:
+        /в\s+варианте\s+исполнения:\s*([A-Za-z0-9\s\-\.]+?)(?:"[^"]*"|$)/i,
+      name: 'в варианте исполнения с двоеточием до кавычек',
+    },
     // Паттерн для "вариант исполнения: N.N. Система ... ModelName" - извлекаем только ModelName
     {
       pattern:
@@ -173,13 +327,15 @@ export function extractModelNameFromCertificate(certificateName) {
         /вариант\s+исполнения:\s*Система\s+диагностическая\s+ультразвуковая\s+([A-Za-z0-9\s\-\.]+?)(?:\s*,|$)/i,
       name: 'вариант исполнения с диагностической системой',
     },
-    // Паттерн для "вариант исполнения: ModelName" с двоеточием (высокий приоритет)
+    // Паттерн для "варианты исполнения: ModelName Производитель"
     {
       pattern:
-        /вариант\s+исполнения:\s*([A-Za-z0-9\s\-\.]+?)(?:\s+с\s+принадлежностями|\s*,|$)/i,
-      name: 'вариант исполнения с двоеточием',
+        /варианты\s+исполнения:\s*([A-Za-z0-9\s\-\.]+?)(?:\s+Производитель|\s*,|$)/i,
+      name: 'варианты исполнения до производителя',
     },
-    // Паттерн для "универсальная серии ModelName с принадлежностями" 
+    // Паттерн для "вариант исполнения: ModelName" с двоеточием (высокий приоритет)
+
+    // Паттерн для "универсальная серии ModelName с принадлежностями"
     {
       pattern:
         /универсальная\s+серии\s+([A-Za-zА-Яа-я0-9\s\-\.ёЁ]+?)(?:\s+с\s+принадлежностями|\s*,|$)/i,
@@ -290,9 +446,19 @@ export function extractModelNameFromCertificate(certificateName) {
       // Добавляем специальную функцию проверки
       validate: (match: string) => {
         // Исключаем названия компаний
-        const companyKeywords = ['КО', 'ЛТД', 'ООО', 'АО', 'ЗАО', 'Корпорэйшн', 'Системз', 'МЕДИСОН', 'САМСУНГ'];
-        return !companyKeywords.some(keyword => match.includes(keyword));
-      }
+        const companyKeywords = [
+          'КО',
+          'ЛТД',
+          'ООО',
+          'АО',
+          'ЗАО',
+          'Корпорэйшн',
+          'Системз',
+          'МЕДИСОН',
+          'САМСУНГ',
+        ];
+        return !companyKeywords.some((keyword) => match.includes(keyword));
+      },
     },
     // Паттерн для "ModelName с принадлежностями" в начале строки
     {
@@ -302,7 +468,7 @@ export function extractModelNameFromCertificate(certificateName) {
   ];
 
   for (const { pattern, name, validate } of patterns) {
-    const match = certificateName.match(pattern);
+    const match = preprocessedCertificateName.match(pattern);
     if (match && match[1]) {
       let extracted = match[1].trim();
 
@@ -323,6 +489,7 @@ export function extractModelNameFromCertificate(certificateName) {
         .replace(/\s+по\s+ТУ.*$/i, '')
         .trim();
 
+      console.log('extractModelNameFromCertificate: extracted=', extracted);
       if (extracted.length > 0) {
         // Проверяем, можно ли записать все символы в латинице
         let normalizedName = extracted;
@@ -333,44 +500,64 @@ export function extractModelNameFromCertificate(certificateName) {
 
         // Проверяем, есть ли полученное название в эталонном списке
         // Сначала проверяем точное совпадение
-        if (isModelInReferenceList(normalizedName) || isModelInReferenceList(extracted)) {
+        if (
+          isModelInReferenceList(normalizedName) ||
+          isModelInReferenceList(extracted)
+        ) {
           return {
             normalizedName: normalizedName,
             patternName: name,
             matched: true,
           };
         }
-        
+
+        // Проверяем с приведением к верхнему регистру
+        if (
+          isModelInReferenceList(normalizedName.toUpperCase()) ||
+          isModelInReferenceList(extracted.toUpperCase())
+        ) {
+          return {
+            normalizedName: normalizedName.toUpperCase(),
+            patternName: name,
+            matched: true,
+          };
+        }
+
         // Затем проверяем приведенные к латинице названия с приведенным к латинице эталонным списком
-        if (isModelInTransliteratedReferenceList(normalizedName) || isModelInTransliteratedReferenceList(extracted)) {
+        if (
+          isModelInTransliteratedReferenceList(normalizedName) ||
+          isModelInTransliteratedReferenceList(extracted)
+        ) {
           return {
             normalizedName: normalizedName,
             patternName: name,
             matched: true,
           };
         }
-        
-        // Если название не найдено в эталонном списке, продолжаем поиск
-        // но запоминаем первый найденный результат как fallback
-        if (!fallbackResult) {
-          fallbackResult = {
-            normalizedName: normalizedName,
-            patternName: name,
-            matched: true,
-          };
-        }
+
+        // Если название не найдено в эталонном списке, НЕ запоминаем его как fallback
+        // Продолжаем поиск других паттернов
       }
     }
   }
 
-  // Если ни один паттерн не дал результат из эталонного списка, возвращаем fallback
-  if (fallbackResult) {
-    return fallbackResult;
+  // Если ни один паттерн не дал результат из эталонного списка, пробуем smart fallback
+  const smartFallbackResult = findBestModelInCertificate(preprocessedCertificateName);
+  if (smartFallbackResult) {
+    return {
+      normalizedName: smartFallbackResult,
+      patternName: 'smart fallback',
+      matched: true,
+    };
   }
 
+  // Если smart fallback тоже не сработал, возвращаем fallback на основе первых слов
+  const words = preprocessedCertificateName.split(/\s+/);
+  const wordFallback = words.slice(0, 3).join(' ');
+
   return {
-    normalizedName: '',
-    patternName: null,
+    normalizedName: wordFallback,
+    patternName: 'word fallback',
     matched: false,
   };
 }

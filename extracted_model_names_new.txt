@@ -1071,6 +1071,7 @@ DC-55
 DC-60
 DC-60 Pro
 Vscan Extend
+Acclarix АХ3
 Acclarix AX4
 Acclarix AX3
 U60

@@ -25,28 +25,6 @@ export class ParserController {
     private characteristicMatcherService: CharacteristicMatcherService,
   ) {}
 
-  @Post('parse-xml')
-  async parseXmlContent(@Body() body: { xmlContent: string }) {
-    try {
-      if (!body.xmlContent) {
-        throw new BadRequestException('XML content is required');
-      }
-
-      await this.contractParserService.parseContractFromXmlString(
-        body.xmlContent,
-      );
-      return {
-        success: true,
-        message: 'Contract parsed and saved successfully',
-      };
-    } catch (error) {
-      this.logger.error(`Error parsing XML content: ${error.message}`);
-      throw new InternalServerErrorException(
-        `Failed to parse XML: ${error.message}`,
-      );
-    }
-  }
-
   @Post('parse-file')
   async parseContractFile(@Body() body: { filePath: string }) {
     try {
@@ -215,10 +193,13 @@ export class ParserController {
       this.logger.log(`Starting to parse contract: ${reestrNumber}`);
 
       // Find XML files for this contract
-      const xmlFiles = await this.contractParserService.findContractXmlFiles(reestrNumber);
-      
+      const xmlFiles =
+        await this.contractParserService.findContractXmlFiles(reestrNumber);
+
       if (xmlFiles.length === 0) {
-        throw new BadRequestException(`No XML files found for contract ${reestrNumber}. Download files first.`);
+        throw new BadRequestException(
+          `No XML files found for contract ${reestrNumber}. Download files first.`,
+        );
       }
 
       let parsedCount = 0;

@@ -1,15 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import {
-  Model,
-  ModelVariant,
-  Characteristic,
-  Contract,
-} from '../../database/entities';
+import { Model, Characteristic, Contract } from '../../database/entities';
 import * as fs from 'fs';
 import * as path from 'path';
-const XLSX = require('xlsx');
+import * as XLSX from 'xlsx';
 
 interface ReportData {
   modelName: string;
@@ -17,7 +12,7 @@ interface ReportData {
   characteristics: {
     [characteristicName: string]: Array<{
       value: string;
-      contractNumber: string;
+      reestrNumber: string;
     }>;
   };
 }
@@ -39,6 +34,12 @@ export class ReportsService {
     this.logger.log('Starting summary report generation...');
 
     try {
+      // Load allowed model names from file
+      const allowedModelNames = this.loadAllowedModelNames();
+      this.logger.log(
+        `Loaded ${allowedModelNames.size} allowed model names from model_names_only.txt`,
+      );
+
       // Get characteristics with related model and contract data (with optional limit)
       let query = this.characteristicRepository
         .createQueryBuilder('char')
@@ -67,11 +68,16 @@ export class ReportsService {
         const modelName =
           char.modelVariant.model.normalizedName ||
           char.modelVariant.model.name;
+        // Filter by allowed model names - skip if not in the allowed list
+        if (!allowedModelNames.has(modelName)) {
+          continue;
+        }
+
         const certificateName = char.modelVariant.model.certificateName || '';
         const charName = char.name;
 
         const charValue = char.value;
-        const contractNumber = char.modelVariant.contract.contractNumber;
+        const reestrNumber = char.modelVariant.contract.reestrNumber;
 
         // Create unique key for model + certificate combination
         const key = `${modelName}|${certificateName}`;
@@ -93,16 +99,16 @@ export class ReportsService {
           reportData[key].characteristics[charName] = [];
         }
 
-        // Check if this value-contract combination already exists
+        // Check if this value-reestr combination already exists
         const existing = reportData[key].characteristics[charName].find(
           (item) =>
-            item.value === charValue && item.contractNumber === contractNumber,
+            item.value === charValue && item.reestrNumber === reestrNumber,
         );
 
         if (!existing) {
           reportData[key].characteristics[charName].push({
             value: charValue,
-            contractNumber: contractNumber,
+            reestrNumber: reestrNumber,
           });
         }
       }
@@ -140,6 +146,12 @@ export class ReportsService {
     this.logger.log('Starting XLSX summary report generation...');
 
     try {
+      // Load allowed model names from file
+      const allowedModelNames = this.loadAllowedModelNames();
+      this.logger.log(
+        `Loaded ${allowedModelNames.size} allowed model names from model_names_only.txt`,
+      );
+
       // Get characteristics with related model and contract data (reuse the same query logic)
       let query = this.characteristicRepository
         .createQueryBuilder('char')
@@ -168,10 +180,15 @@ export class ReportsService {
         const modelName =
           char.modelVariant.model.normalizedName ||
           char.modelVariant.model.name;
+        // Filter by allowed model names - skip if not in the allowed list
+        if (!allowedModelNames.has(modelName)) {
+          continue;
+        }
+
         const certificateName = char.modelVariant.model.certificateName || '';
         const charName = char.name;
         const charValue = char.value;
-        const contractNumber = char.modelVariant.contract.contractNumber;
+        const reestrNumber = char.modelVariant.contract.reestrNumber;
 
         // Create unique key for model + certificate combination
         const key = `${modelName}|${certificateName}`;
@@ -193,16 +210,16 @@ export class ReportsService {
           reportData[key].characteristics[charName] = [];
         }
 
-        // Check if this value-contract combination already exists
+        // Check if this value-reestr combination already exists
         const existing = reportData[key].characteristics[charName].find(
           (item) =>
-            item.value === charValue && item.contractNumber === contractNumber,
+            item.value === charValue && item.reestrNumber === reestrNumber,
         );
 
         if (!existing) {
           reportData[key].characteristics[charName].push({
             value: charValue,
-            contractNumber: contractNumber,
+            reestrNumber: reestrNumber,
           });
         }
       }
@@ -287,14 +304,14 @@ export class ReportsService {
           if (!valueGroups[item.value]) {
             valueGroups[item.value] = [];
           }
-          valueGroups[item.value].push(item.contractNumber);
+          valueGroups[item.value].push(item.reestrNumber);
         }
 
-        // Format cell content: "value1 (contract1, contract2); value2 (contract3)"
+        // Format cell content: "value1 (reestr1, reestr2); value2 (reestr3)"
         let cellContent = Object.entries(valueGroups)
-          .map(([value, contracts]) => {
-            const uniqueContracts = [...new Set(contracts)].sort();
-            return `${value} (${uniqueContracts.join(', ')})`;
+          .map(([value, reestrs]) => {
+            const uniqueReestrs = [...new Set(reestrs)].sort();
+            return `${value} (${uniqueReestrs.join(', ')})`;
           })
           .join('; ');
 
@@ -345,14 +362,14 @@ export class ReportsService {
           if (!valueGroups[item.value]) {
             valueGroups[item.value] = [];
           }
-          valueGroups[item.value].push(item.contractNumber);
+          valueGroups[item.value].push(item.reestrNumber);
         }
 
-        // Format cell content: "value1 (contract1, contract2); value2 (contract3)"
+        // Format cell content: "value1 (reestr1, reestr2); value2 (reestr3)"
         const cellContent = Object.entries(valueGroups)
-          .map(([value, contracts]) => {
-            const uniqueContracts = [...new Set(contracts)].sort();
-            return `${value} (${uniqueContracts.join(', ')})`;
+          .map(([value, reestrs]) => {
+            const uniqueReestrs = [...new Set(reestrs)].sort();
+            return `${value} (${uniqueReestrs.join(', ')})`;
           })
           .join('; ');
 
@@ -378,6 +395,44 @@ export class ReportsService {
     }
 
     return value;
+  }
+
+  private loadAllowedModelNames(): Set<string> {
+    try {
+      const filePath = path.join(process.cwd(), 'model_names_only.txt');
+      const fileContent = fs.readFileSync(filePath, 'utf-8');
+
+      // Parse the file content - each line contains a model name
+      const allowedNames = new Set<string>();
+      const lines = fileContent.split('\n');
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (trimmedLine) {
+          // Each line is just a model name (no prefix format)
+          allowedNames.add(trimmedLine);
+        }
+      }
+
+      this.logger.log(`Parsed ${allowedNames.size} model names from file`);
+      if (allowedNames.size === 0) {
+        this.logger.warn('No model names found in file - check file format');
+        // Log first few lines for debugging
+        const firstLines = lines
+          .slice(0, 3)
+          .map((l) => l.trim())
+          .filter((l) => l);
+        this.logger.log(`First lines: ${JSON.stringify(firstLines)}`);
+      }
+
+      return allowedNames;
+    } catch (error) {
+      this.logger.error(
+        `Error loading model names from file: ${(error as Error).message}`,
+      );
+      // Return empty set if file can't be read - this will filter out all models
+      return new Set<string>();
+    }
   }
 
   async getReportStats(): Promise<{

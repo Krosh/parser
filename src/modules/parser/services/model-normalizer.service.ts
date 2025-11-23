@@ -248,120 +248,25 @@ export class ModelNormalizerService {
   } {
     if (!certificateName) return { modelName: '', foundInReferenceList: false };
 
-    // Используем общую логику извлечения паттернов
-    // @ts-ignore
-    const result: ModelMatchResult = extractFromPatterns(certificateName);
+    // Используем единую логику извлечения из pattern-extractor
+    const result = extractFromPatterns(certificateName);
 
-    if (result.matched && result.normalizedName) {
-      this.logger.debug(
-        `Extracted model name "${result.normalizedName}" using pattern "${result.patternName}" from certificate "${certificateName}"`,
-      );
-      // Если extractFromPatterns нашла совпадение, значит модель есть в эталонном списке
-      return {
-        modelName: result.normalizedName,
-        foundInReferenceList: true,
-        patternName: result.patternName || undefined,
-      };
+    if (!result) {
+      return { modelName: '', foundInReferenceList: false };
     }
 
-    // Универсальный fallback: ищем наиболее похожее название из эталонного списка
-    const bestMatch = this.findBestModelInCertificate(certificateName);
-    if (bestMatch) {
-      this.logger.debug(
-        `Smart fallback found "${bestMatch}" in certificate "${certificateName}"`,
-      );
-      return {
-        modelName: bestMatch,
-        foundInReferenceList: true,
-        patternName: 'smart fallback',
-      };
-    }
-
-    // Если ничего не найдено, возвращаем первые несколько слов
-    const words = certificateName.split(/\s+/);
-    const result_fallback = words.slice(0, 3).join(' ');
     this.logger.debug(
-      `Fallback model name "${result_fallback}" from certificate "${certificateName}"`,
+      `Extracted model name "${result.normalizedName}" using pattern "${result.patternName}" from certificate "${certificateName}"`,
     );
+
+    // Определяем, найдена ли модель в эталонном списке на основе типа паттерна
+    const foundInReferenceList =
+      result.matched && result.patternName !== 'word fallback';
+
     return {
-      modelName: result_fallback,
-      foundInReferenceList: false,
-      patternName: 'word fallback',
+      modelName: result.normalizedName,
+      foundInReferenceList,
+      patternName: result.patternName || undefined,
     };
-  }
-
-  private findBestModelInCertificate(certificateName: string): string | null {
-    let bestMatch = '';
-    let bestScore = 0;
-    const SMART_FALLBACK_THRESHOLD = 0.7; // Минимальный порог для умного fallback
-
-    // Нормализуем входную строку для поиска
-    const normalizedCertificate = certificateName.toLowerCase();
-
-    for (const modelName of this.modelNames) {
-      // Проверяем, содержится ли название модели в сертификате
-      const normalizedModel = modelName.toLowerCase();
-
-      // 1. Точное вхождение (высший приоритет) - предпочитаем более длинные названия
-      if (normalizedCertificate.includes(normalizedModel)) {
-        const score = 1.0 + modelName.length / 1000; // Бонус за длину названия
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = modelName;
-        }
-        continue;
-      }
-
-      // 2. Частичное совпадение по словам
-      const modelWords = normalizedModel.split(/\s+/);
-      const certificateWords = normalizedCertificate.split(/\s+/);
-
-      let matchingWords = 0;
-      for (const modelWord of modelWords) {
-        for (const certWord of certificateWords) {
-          // Точное совпадение слова
-          if (modelWord === certWord) {
-            matchingWords += 1;
-            break;
-          }
-          // Частичное совпадение (одно слово содержит другое)
-          if (modelWord.length > 3 && certWord.includes(modelWord)) {
-            matchingWords += 0.8;
-            break;
-          }
-          if (certWord.length > 3 && modelWord.includes(certWord)) {
-            matchingWords += 0.8;
-            break;
-          }
-        }
-      }
-
-      const wordScore = matchingWords / modelWords.length;
-      if (wordScore > bestScore && wordScore >= SMART_FALLBACK_THRESHOLD) {
-        bestScore = wordScore;
-        bestMatch = modelName;
-      }
-
-      // 3. Сходство по расстоянию Левенштейна (для коротких названий)
-      if (modelName.length <= 15) {
-        const similarity = this.levenshteinSimilarity(
-          normalizedModel,
-          normalizedCertificate,
-        );
-        if (similarity > bestScore && similarity >= SMART_FALLBACK_THRESHOLD) {
-          bestScore = similarity;
-          bestMatch = modelName;
-        }
-      }
-    }
-
-    if (bestScore >= SMART_FALLBACK_THRESHOLD) {
-      this.logger.debug(
-        `Smart fallback match: "${bestMatch}" with score ${bestScore.toFixed(3)}`,
-      );
-      return bestMatch;
-    }
-
-    return null;
   }
 }

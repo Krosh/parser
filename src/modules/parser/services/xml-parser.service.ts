@@ -19,7 +19,10 @@ export class XmlParserService {
     private modelNormalizerService: ModelNormalizerService,
   ) {}
 
-  async parseContractXml(xmlContent: string, overrideContractNumber?: string): Promise<ContractData> {
+  async parseContractXml(
+    xmlContent: string,
+    overrideContractNumber?: string,
+  ): Promise<ContractData> {
     try {
       const parser = new xml2js.Parser({
         explicitArray: false,
@@ -42,14 +45,24 @@ export class XmlParserService {
     }
   }
 
-  private async extractContractData(contract: any, overrideContractNumber?: string): Promise<ContractData> {
+  private async extractContractData(
+    contract: any,
+    overrideContractNumber?: string,
+  ): Promise<ContractData> {
     const customer = this.extractCustomerData(contract.customerInfo);
     const participant = this.extractParticipantData(contract.participantInfo);
 
     // Извлекаем номер контракта для передачи в extractModelsData
-    this.logger.debug(`DEBUG: contract.commonInfo = ${JSON.stringify(contract.commonInfo, null, 2)}`);
-    const contractNumber = overrideContractNumber || contract.commonInfo?.contractNumber || '';
-    this.logger.debug(`DEBUG: final contractNumber = "${contractNumber}" (override: "${overrideContractNumber}")`);
+    this.logger.debug(
+      `DEBUG: contract.commonInfo = ${JSON.stringify(contract.commonInfo, null, 2)}`,
+    );
+    const contractNumber =
+      overrideContractNumber || contract.commonInfo?.contractNumber || '';
+
+    console.log('contractNumber', contractNumber, overrideContractNumber);
+    this.logger.debug(
+      `DEBUG: final contractNumber = "${contractNumber}" (override: "${overrideContractNumber}")`,
+    );
 
     const models = await this.extractModelsData(
       contract.contractSubjectInfo?.productsInfo,
@@ -68,7 +81,7 @@ export class XmlParserService {
 
     return {
       contractNumber: contract.contractNumber,
-      reestrNumber: this.extractReestrNumber(contract.contractNumber),
+      reestrNumber: contractNumber,
       versionNumber: contract.versionNumber,
       docType: contract.docType,
       mainDocId: contract.mainDocInfo?.id,
@@ -184,28 +197,19 @@ export class XmlParserService {
         certificateName,
       );
 
-    let modelMatchResult;
-    let modelNameForNormalization;
-    
-    if (extractionResult.foundInReferenceList && extractionResult.modelName) {
-      // Если модель уже найдена в эталонном списке, не нужно заново искать
-      modelNameForNormalization = extractionResult.modelName;
-      modelMatchResult = {
-        normalizedName: extractionResult.modelName,
-        similarity: 1.0,
-        matched: true,
-        patternName: extractionResult.patternName,
-      };
-      this.logger.debug(
-        `Using extracted model "${extractionResult.modelName}" from pattern "${extractionResult.patternName}" (found in reference list)`,
-      );
-    } else {
-      // Используем извлеченное название для нормализации, fallback на product.name
-      modelNameForNormalization = extractionResult.modelName || product.name;
-      modelMatchResult = this.modelNormalizerService.normalizeModelName(
-        modelNameForNormalization,
-      );
-    }
+    // Теперь extractModelNameFromCertificate возвращает уже окончательный результат
+    const modelMatchResult = {
+      normalizedName: extractionResult.modelName,
+      similarity: extractionResult.foundInReferenceList ? 1.0 : 0.5,
+      matched: extractionResult.foundInReferenceList,
+      patternName: extractionResult.patternName,
+    };
+
+    const modelNameForNormalization = extractionResult.modelName;
+
+    this.logger.debug(
+      `Extracted model "${extractionResult.modelName}" using pattern "${extractionResult.patternName}" (foundInReferenceList: ${extractionResult.foundInReferenceList})`,
+    );
 
     if (modelMatchResult.matched) {
       this.logger.debug(
@@ -218,10 +222,14 @@ export class XmlParserService {
     }
 
     // Сохраняем маппинг в отдельную таблицу
-    this.logger.debug(`DEBUG: contractNumber="${contractNumber}", certificateName="${certificateName}"`);
-    
+    this.logger.debug(
+      `DEBUG: contractNumber="${contractNumber}", certificateName="${certificateName}"`,
+    );
+
     if (certificateName && contractNumber) {
-      this.logger.debug(`Saving model contract mapping: ${contractNumber} -> ${modelMatchResult.normalizedName}`);
+      this.logger.debug(
+        `Saving model contract mapping: ${contractNumber} -> ${modelMatchResult.normalizedName}`,
+      );
       await this.modelNormalizerService.saveModelContractMapping(
         contractNumber,
         certificateName,
@@ -230,7 +238,9 @@ export class XmlParserService {
         'pattern_extraction', // extractionMethod
       );
     } else {
-      this.logger.warn(`Skipping model contract mapping - missing data: contractNumber="${contractNumber}", certificateName="${certificateName}"`);
+      this.logger.warn(
+        `Skipping model contract mapping - missing data: contractNumber="${contractNumber}", certificateName="${certificateName}"`,
+      );
     }
 
     return {

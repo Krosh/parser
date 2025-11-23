@@ -48,7 +48,9 @@ export class ContractStorageService {
       const savedCustomer = await this.saveCustomer(contractData.customer);
 
       // Save or get participant
-      const savedParticipant = await this.saveParticipant(contractData.participant);
+      const savedParticipant = await this.saveParticipant(
+        contractData.participant,
+      );
 
       // Create contract - exclude customer and participant objects from spread
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -151,10 +153,10 @@ export class ContractStorageService {
       model = await this.modelRepository.findOne({
         where: { normalizedName: modelData.normalizedName },
       });
-      
+
       if (model) {
         this.logger.debug(
-          `Found existing model with normalizedName "${modelData.normalizedName}"`
+          `Found existing model with normalizedName "${modelData.normalizedName}"`,
         );
         return model;
       }
@@ -162,7 +164,7 @@ export class ContractStorageService {
 
     // Fallback to original search criteria if no normalized name or no match found
     const searchCriteria: Record<string, any> = {};
-    
+
     if (modelData.ktruCode) {
       searchCriteria.ktruCode = modelData.ktruCode;
     }

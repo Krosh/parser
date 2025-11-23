@@ -86,7 +86,7 @@ const testCases = [
   {
     input:
       'Система ультразвуковая диагностическая медицинская с Logiq E10 c принадлежностями',
-    expected: 'Logiq E10',
+    expected: 'LOGIQ E10',
   },
   {
     input: 'Система ультразвуковая цифровая цветовая доплеровская CHISON',
@@ -146,6 +146,49 @@ const testCases = [
       'Система ультразвуковая диагностическая медицинская Vivid iq с принадлежностями вариант исполнения: 1.2. Система ультразвуковая диагностическая медицинская Vivid iq Premium console',
     expected: 'Vivid iq Premium console',
   },
+  {
+    input:
+      'Система ультразвуковая диагностическая Affiniti с принадлежностями, в варианте исполнения: Affiniti 70"Филипс Ультрасаунд, ЛЛС."',
+    expected: 'Affiniti 70',
+  },
+  {
+    input:
+      'Аппарат ультразвуковой диагностический серии М с принадлежностями, варианты исполнения: М9 Производитель: "Шэньчжэнь Майндрэй Био-Мeдикал Электроникс Ко., Лтд.", Shenzhen Mindray Bio-Medical Electronics Co., Ltd. Страна происхождения: Китайская Народная Республика',
+    expected: 'M9',
+  },
+  {
+    input:
+      'РУ № РЗН 2024/23835 от 30.10.2024 г.: IV. Система ультразвуковой визуализации универсальная серии Consona N7 с принадлежностями, вариант исполнения: Consona N7Q по ТУ 26.60.12-001- 51850757 -2024',
+    expected: 'Consona N7Q',
+  },
+  {
+    input:
+      'истема ультразвуковой визуализации универсальная серии Consona N7 с принадлежностями, вариант исполнения: Система ультразвуковой визуализации универсальная серии Consona N7 с принадлежностями, вариант исполнения Consona N7 Exp',
+    expected: 'Consona N7 Exp',
+  },
+  {
+    input:
+      'Система ультразвуковой визуализации универсальная серии Consona N7 с принадлежностями,',
+    expected: 'Consona N7',
+  },
+  {
+    input:
+      'Система ультразвуковая диагностическая медицинская Vivid с принадлежностями, в исполнении Vivid Е95',
+    expected: 'Vivid E95',
+  },
+  {
+    input:
+      'Система ультразвуковая диагностическая, вариант исполнения V6- RUS; РЗН 2023/21213',
+    expected: 'V6-RUS',
+  },
+  {
+    input: 'Система ультразвуковая диагностическая W10-RUS с принадлежностями',
+    expected: 'W10-RUS',
+  },
+  {
+    input: 'Система диагностическая ультразвуковая HS40-RUS с принадлежностями',
+    expected: 'HS40-RUS',
+  },
 ];
 
 console.log('=== КОМПЛЕКСНЫЙ ТЕСТ ИЗВЛЕЧЕНИЯ НАЗВАНИЙ МОДЕЛЕЙ ===\n');
@@ -153,49 +196,10 @@ console.log('=== КОМПЛЕКСНЫЙ ТЕСТ ИЗВЛЕЧЕНИЯ НАЗВА
 testCases.forEach((testCase, index) => {
   console.log(`\n--- Тест ${index + 1} ---`);
   console.log(`Ожидается: "${testCase.expected}"`);
+
   const result = testExtractModelNameFromCertificate(testCase.input);
   console.log(`Результат: "${result}"`);
   console.log(
     `Статус: ${result === testCase.expected ? '✅ УСПЕХ' : '❌ ОШИБКА'}`,
   );
 });
-
-// Детальный анализ конкретного случая с EM7
-console.log('\n=== ДЕТАЛЬНЫЙ АНАЛИЗ СЛУЧАЯ EM7 ===');
-const em7TestCase = "Система ультразвуковой визуализации универсальная серии EM7 с принадлежностями по ТУ 26.60.12-003-39346393-2021, в составе: Система ультразвуковой визуализации универсальная серии ЕМ7 с принадлежностями, вариант исполнения: ЕМ7 Ехр по ТУ 26.60.12-003-39346393-2021";
-
-console.log(`\nТестовая строка: ${em7TestCase}`);
-
-// Проверим какие паттерны срабатывают
-const patterns = [
-  {
-    pattern: /универсальная\s+серии\s+([A-Za-zА-Яа-я0-9\s\-\.ёЁ]+?)(?:\s+с\s+принадлежностями|\s*,|$)/gi,
-    name: 'универсальная серии'
-  },
-  {
-    pattern: /вариант\s+исполнения:\s*([A-Za-z0-9\s\-\.]+?)(?:\s+с\s+принадлежностями|\s*,|$)/gi,
-    name: 'вариант исполнения с двоеточием'
-  }
-];
-
-patterns.forEach(({pattern, name}) => {
-  let match;
-  pattern.lastIndex = 0; // Reset regex
-  while ((match = pattern.exec(em7TestCase)) !== null) {
-    console.log(`Паттерн "${name}" нашел: "${match[1]}" на позиции ${match.index}`);
-  }
-});
-
-console.log('\nРезультат extractModelNameFromCertificate:');
-const em7Result = extractModelNameFromCertificate(em7TestCase);
-console.log(em7Result);
-
-// Детальный анализ случая Acclarix/U60
-console.log('\n=== ДЕТАЛЬНЫЙ АНАЛИЗ СЛУЧАЯ ACCLARIX/U60 ===');
-const acclarixTestCase = "Система диагностическая ультразвуковая Acclarix с принадлежностями,  вариант исполнения: Система диагностическая ультразвуковая U60";
-
-console.log(`\nТестовая строка: ${acclarixTestCase}`);
-
-console.log('\nРезультат extractModelNameFromCertificate:');
-const acclarixResult = extractModelNameFromCertificate(acclarixTestCase);
-console.log(acclarixResult);

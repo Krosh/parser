@@ -10,6 +10,15 @@ Logiq S8 (версия R2)
 Logiq S8 (версия R3)
 Logiq S8 (версия R4)
 Logiq e
+Consona N9 Super
+Consona N9P
+Consona N7
+Consona N7P
+Consona N7Q
+Consona N7T
+Consona N7K
+Consona N7V
+Consona N7 Exp 
 ARIETTA S70
 ARIETTA 65
 ARIETTA 50
@@ -76,6 +85,8 @@ DC-70S
 Logiq F6
 Logiq F8
 Logiq F8 Expert
+HS30-RUS
+HS40-RUS
 HS50-RUS
 HS60-RUS
 AcuVista RS880b
@@ -172,6 +183,7 @@ VINNO 8
 VINNO 6
 VINNO 5
 W9-RUS
+W10-RUS
 Voluson E6
 Voluson E6
 Voluson E6
@@ -179,13 +191,6 @@ ACUSON Juniper
 V8-RUS
 Vivid S60N
 Vivid S70N
-Consona N9 Super
-Consona N9P
-Consona N7P
-Consona N7Q
-Consona N7T
-Consona N7K
-Consona N7V 
 ЕЛС-Wisonic L
 ЕЛС-Wisonic C
 X-CUBE 90
@@ -298,11 +303,11 @@ EPIQ Elite
 РуСкан 65М
 iLivTouch Рго1000
 iLivTouch Рго3000
-Consona N9
 Consona N9 Pro
 Consona N9S
 Consona N9 Exp
 Consona N9 Elite
+Consona N9
 Recho N9
 Resona N9
 Consona N8
@@ -378,9 +383,9 @@ Z60 Pro
 3300 W
 3300 C
 Versana Active
-М9
-М9Т
-М9CV
+M9
+M9T
+M9CV
 M8
 M8GI
 Aplio a (CUS-AA000)
@@ -449,8 +454,8 @@ DC-55
 DC-60
 DC-60 Pro
 Vscan Extend
-Acclarix AX4
-Acclarix AX3
+AX4
+AX3
 U60
 USCOM 1A
 SONOLINE В
@@ -471,8 +476,11 @@ Eye Cubed
 Vivid S60
 Vivid S70
 Acclarix AX8
+Acclarix АХ3
 Versana Essential
 AcuVista Grace
 SONON 300C
 SONON 300L
 CHISON
+VINNO E20
+MX8 Exp
