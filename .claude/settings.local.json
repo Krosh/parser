@@ -4,7 +4,8 @@
       "Read(/Users/pavelprohorov/Documents/**)",
       "Bash(node:*)",
       "Bash(npx ts-node:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(yarn add:*)"
     ],
     "deny": [],
     "ask": []

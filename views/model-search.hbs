@@ -81,6 +81,36 @@
         .add-filter-btn:hover {
             background-color: #218838;
         }
+        .upload-csv-section {
+            background-color: #e7f3ff;
+            border: 2px dashed #007bff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .upload-csv-btn {
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .upload-csv-btn:hover {
+            background-color: #138496;
+        }
+        .csv-file-input {
+            margin: 10px 0;
+        }
+        .success-message {
+            color: #28a745;
+            background-color: #d4edda;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
         .search-btn {
             background-color: #007bff;
             color: white;
@@ -201,6 +231,15 @@
         {{#if error}}
             <div class="error">{{error}}</div>
         {{/if}}
+
+        <div class="upload-csv-section">
+            <h3>Загрузка фильтров из CSV</h3>
+            <p>Загрузите CSV файл с условиями фильтра для автоматического заполнения</p>
+            <input type="file" id="csvFileInput" accept=".csv" class="csv-file-input">
+            <br>
+            <button type="button" class="upload-csv-btn" onclick="uploadCsvFile()">Загрузить фильтры из CSV</button>
+            <div id="uploadMessage"></div>
+        </div>
 
         <form id="searchForm">
             <div class="form-group">
@@ -469,6 +508,103 @@
                     suggestionsDiv.style.display = 'none';
                 }
             });
+        }
+
+        // Функция для загрузки CSV файла
+        async function uploadCsvFile() {
+            const fileInput = document.getElementById('csvFileInput');
+            const uploadMessage = document.getElementById('uploadMessage');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                uploadMessage.innerHTML = '<div class="error">Пожалуйста, выберите CSV файл</div>';
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('csvFile', file);
+
+            uploadMessage.innerHTML = '<div class="loading">Загрузка и парсинг CSV файла...</div>';
+
+            try {
+                const response = await fetch('/model-search/upload-csv', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    uploadMessage.innerHTML = `<div class="error">Ошибка: ${result.error}</div>`;
+                    return;
+                }
+
+                // Очищаем существующие фильтры
+                document.getElementById('characteristicFilters').innerHTML = '';
+                filterIndex = 0;
+
+                // Добавляем фильтры из CSV
+                result.filters.forEach(filter => {
+                    addCharacteristicFilterWithData(filter.code, filter.operator, filter.value);
+                });
+
+                uploadMessage.innerHTML = `<div class="success-message">Успешно загружено ${result.count} фильтров из CSV</div>`;
+
+                // Очищаем input файла
+                fileInput.value = '';
+            } catch (error) {
+                uploadMessage.innerHTML = `<div class="error">Ошибка загрузки: ${error.message}</div>`;
+            }
+        }
+
+        // Функция для добавления фильтра с предзаполненными данными
+        function addCharacteristicFilterWithData(code, operator, value) {
+            const filtersContainer = document.getElementById('characteristicFilters');
+
+            const filterDiv = document.createElement('div');
+            filterDiv.className = 'characteristic-filter';
+            filterDiv.innerHTML = `
+                <div class="filter-row">
+                    <div class="autocomplete-wrapper">
+                        <label>Характеристика:</label>
+                        <input type="text"
+                               name="characteristics[${filterIndex}][code]"
+                               class="characteristic-autocomplete"
+                               placeholder="Введите название характеристики..."
+                               required
+                               autocomplete="off"
+                               value="${code || ''}">
+                        <div class="autocomplete-suggestions" style="display: none;"></div>
+                    </div>
+                    <div>
+                        <label>Оператор:</label>
+                        <select name="characteristics[${filterIndex}][operator]" required>
+                            ${operators.map(op =>
+                                `<option value="${op.value}" ${op.value === operator ? 'selected' : ''}>${op.label}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label>Значение:</label>
+                        <input type="text"
+                               name="characteristics[${filterIndex}][value]"
+                               placeholder="Введите значение..."
+                               required
+                               value="${value || ''}">
+                    </div>
+                    <div>
+                        <button type="button" class="remove-filter" onclick="removeFilter(this)">Удалить</button>
+                    </div>
+                </div>
+            `;
+
+            filtersContainer.appendChild(filterDiv);
+
+            // Настраиваем автокомплит для нового поля
+            const newInput = filterDiv.querySelector('.characteristic-autocomplete');
+            setupAutocomplete(newInput);
+
+            filterIndex++;
         }
 
         // Добавляем один фильтр по умолчанию

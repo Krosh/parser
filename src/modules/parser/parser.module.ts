@@ -17,6 +17,7 @@ import { ContractFileDownloaderService } from './services/contract-file-download
 import { CharacteristicMatcherService } from './services/characteristic-matcher.service';
 import { ModelNormalizerService } from './services/model-normalizer.service';
 import { ModelSearchService } from './services/model-search.service';
+import { CsvFilterParserService } from './services/csv-filter-parser.service';
 import { ParserController } from './controllers/parser.controller';
 import { DataController } from './controllers/data.controller';
 import { ModelSearchController } from './controllers/model-search.controller';
@@ -47,6 +48,7 @@ import { ModelSearchController } from './controllers/model-search.controller';
     CharacteristicMatcherService,
     ModelNormalizerService,
     ModelSearchService,
+    CsvFilterParserService,
   ],
   exports: [
     XmlParserService,
