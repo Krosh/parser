@@ -25,7 +25,22 @@ export class ModelSearchService {
 
     this.applyFilters(queryBuilder, searchDto);
 
-    return await queryBuilder.getMany();
+    const models = await queryBuilder.getMany();
+
+    // If characteristics filter is applied, filter out variants that don't match ALL criteria
+    if (searchDto.characteristics && searchDto.characteristics.length > 0) {
+      const filters = searchDto.characteristics;
+      models.forEach((model) => {
+        model.variants = model.variants.filter((variant) =>
+          this.variantMatchesAllCharacteristics(variant, filters),
+        );
+      });
+
+      // Remove models that have no matching variants
+      return models.filter((model) => model.variants.length > 0);
+    }
+
+    return models;
   }
 
   private applyFilters(
@@ -82,22 +97,72 @@ export class ModelSearchService {
         return `LOWER(CAST(${fieldName} AS TEXT)) LIKE LOWER(${paramName})`;
       case SearchOperator.LESS_THAN_OR_EQUAL:
         return `
-          CASE 
-            WHEN CAST(${fieldName} AS TEXT) ~ '^[0-9]+(\\.\\d+)?$' 
+          CASE
+            WHEN CAST(${fieldName} AS TEXT) ~ '^[0-9]+(\\.\\d+)?$'
             THEN CAST(${fieldName} AS DECIMAL) <= CAST(${paramName} AS DECIMAL)
             ELSE LOWER(CAST(${fieldName} AS TEXT)) LIKE LOWER(CONCAT('%', ${paramName}, '%'))
           END
         `;
       case SearchOperator.GREATER_THAN_OR_EQUAL:
         return `
-          CASE 
-            WHEN CAST(${fieldName} AS TEXT) ~ '^[0-9]+(\\.\\d+)?$' 
+          CASE
+            WHEN CAST(${fieldName} AS TEXT) ~ '^[0-9]+(\\.\\d+)?$'
             THEN CAST(${fieldName} AS DECIMAL) >= CAST(${paramName} AS DECIMAL)
             ELSE LOWER(CAST(${fieldName} AS TEXT)) LIKE LOWER(CONCAT('%', ${paramName}, '%'))
           END
         `;
       default:
         return `LOWER(CAST(${fieldName} AS TEXT)) LIKE LOWER(${paramName})`;
+    }
+  }
+
+  private variantMatchesAllCharacteristics(
+    variant: ModelVariant,
+    filters: Array<{ code: string; operator: SearchOperator; value: string }>,
+  ): boolean {
+    return filters.every((filter) => {
+      const characteristic = variant.characteristics.find(
+        (ch) => ch.code === filter.code,
+      );
+
+      if (!characteristic) {
+        return false;
+      }
+
+      return this.matchesCharacteristic(
+        characteristic.value,
+        filter.operator,
+        filter.value,
+      );
+    });
+  }
+
+  private matchesCharacteristic(
+    charValue: string,
+    operator: SearchOperator,
+    filterValue: string,
+  ): boolean {
+    // Check if value is numeric
+    const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(charValue);
+
+    switch (operator) {
+      case SearchOperator.EQUALS:
+        return charValue.toLowerCase().includes(filterValue.toLowerCase());
+
+      case SearchOperator.LESS_THAN_OR_EQUAL:
+        if (isNumeric) {
+          return parseFloat(charValue) <= parseFloat(filterValue);
+        }
+        return charValue.toLowerCase().includes(filterValue.toLowerCase());
+
+      case SearchOperator.GREATER_THAN_OR_EQUAL:
+        if (isNumeric) {
+          return parseFloat(charValue) >= parseFloat(filterValue);
+        }
+        return charValue.toLowerCase().includes(filterValue.toLowerCase());
+
+      default:
+        return charValue.toLowerCase().includes(filterValue.toLowerCase());
     }
   }
 
