@@ -18,32 +18,100 @@ export class ModelSearchService {
   ) {}
 
   async searchModels(searchDto: ModelSearchDto): Promise<Model[]> {
+    // Если есть фильтры по характеристикам, используем оптимизированный подход
+    if (searchDto.characteristics && searchDto.characteristics.length > 0) {
+      return this.searchModelsWithCharacteristicFilters(searchDto);
+    }
+
+    // Простой поиск без фильтров по характеристикам
     const queryBuilder = this.modelRepository
       .createQueryBuilder('model')
       .leftJoinAndSelect('model.variants', 'variant')
       .leftJoinAndSelect('variant.characteristics', 'characteristic');
 
-    this.applyFilters(queryBuilder, searchDto);
+    this.applyBasicFilters(queryBuilder, searchDto);
 
-    const models = await queryBuilder.getMany();
-
-    // If characteristics filter is applied, filter out variants that don't match ALL criteria
-    if (searchDto.characteristics && searchDto.characteristics.length > 0) {
-      const filters = searchDto.characteristics;
-      models.forEach((model) => {
-        model.variants = model.variants.filter((variant) =>
-          this.variantMatchesAllCharacteristics(variant, filters),
-        );
-      });
-
-      // Remove models that have no matching variants
-      return models.filter((model) => model.variants.length > 0);
-    }
-
-    return models;
+    return await queryBuilder.getMany();
   }
 
-  private applyFilters(
+  /**
+   * Оптимизированный поиск с фильтрацией по характеристикам
+   * Сначала находим ID подходящих вариантов, затем загружаем только их
+   */
+  private async searchModelsWithCharacteristicFilters(
+    searchDto: ModelSearchDto,
+  ): Promise<Model[]> {
+    // Шаг 1: Найти ID вариантов, соответствующих всем фильтрам
+    const variantIds = await this.findMatchingVariantIds(searchDto);
+
+    if (variantIds.length === 0) {
+      return [];
+    }
+
+    // Шаг 2: Загрузить модели только с подходящими вариантами
+    const queryBuilder = this.modelRepository
+      .createQueryBuilder('model')
+      .innerJoin(
+        'model.variants',
+        'variant',
+        'variant.id IN (:...variantIds)',
+        {
+          variantIds,
+        },
+      )
+      .leftJoinAndSelect('model.variants', 'allVariants')
+      .leftJoinAndSelect('allVariants.characteristics', 'characteristic')
+      .where('allVariants.id IN (:...variantIds)', { variantIds });
+
+    this.applyBasicFilters(queryBuilder, searchDto);
+
+    return await queryBuilder.getMany();
+  }
+
+  /**
+   * Находит ID вариантов, которые соответствуют ВСЕМ фильтрам по характеристикам
+   */
+  private async findMatchingVariantIds(
+    searchDto: ModelSearchDto,
+  ): Promise<string[]> {
+    if (!searchDto.characteristics || searchDto.characteristics.length === 0) {
+      return [];
+    }
+
+    const filters = searchDto.characteristics;
+
+    // Строим запрос, который находит варианты, имеющие все нужные характеристики с правильными значениями
+    let query = this.modelVariantRepository
+      .createQueryBuilder('variant')
+      .select('variant.id');
+
+    // Для каждого фильтра добавляем EXISTS условие
+    filters.forEach((filter, index) => {
+      const paramName = `charCode${index}`;
+      const valueName = `charValue${index}`;
+
+      query = query.andWhere(
+        `EXISTS (
+          SELECT 1 FROM characteristics ch
+          WHERE ch."modelVariantId" = variant.id
+          AND ch.code = :${paramName}
+          AND ${this.buildCharacteristicCondition(filter.operator, `ch.value`, `:${valueName}`)}
+        )`,
+        {
+          [paramName]: filter.code,
+          [valueName]:
+            filter.operator === SearchOperator.EQUALS
+              ? `%${filter.value}%`
+              : filter.value,
+        },
+      );
+    });
+
+    const results = await query.getRawMany<{ variant_id: string }>();
+    return results.map((r) => r.variant_id);
+  }
+
+  private applyBasicFilters(
     queryBuilder: SelectQueryBuilder<Model>,
     searchDto: ModelSearchDto,
   ): void {
@@ -58,31 +126,6 @@ export class ModelSearchService {
     if (searchDto.ktruCode) {
       queryBuilder.andWhere('model.ktruCode = :ktruCode', {
         ktruCode: searchDto.ktruCode,
-      });
-    }
-
-    // Filter by characteristics
-    if (searchDto.characteristics && searchDto.characteristics.length > 0) {
-      searchDto.characteristics.forEach((filter, index) => {
-        const paramName = `charCode${index}`;
-        const valueName = `charValue${index}`;
-
-        queryBuilder.andWhere(
-          `EXISTS (
-            SELECT 1 FROM model_variants mv 
-            JOIN characteristics ch ON ch."modelVariantId" = mv.id 
-            WHERE mv."modelId" = model.id 
-            AND ch.code = :${paramName} 
-            AND ${this.buildCharacteristicCondition(filter.operator, `ch.value`, `:${valueName}`)}
-          )`,
-          {
-            [paramName]: filter.code,
-            [valueName]:
-              filter.operator === SearchOperator.EQUALS
-                ? `%${filter.value}%`
-                : filter.value,
-          },
-        );
       });
     }
   }
@@ -113,56 +156,6 @@ export class ModelSearchService {
         `;
       default:
         return `LOWER(CAST(${fieldName} AS TEXT)) LIKE LOWER(${paramName})`;
-    }
-  }
-
-  private variantMatchesAllCharacteristics(
-    variant: ModelVariant,
-    filters: Array<{ code: string; operator: SearchOperator; value: string }>,
-  ): boolean {
-    return filters.every((filter) => {
-      const characteristic = variant.characteristics.find(
-        (ch) => ch.code === filter.code,
-      );
-
-      if (!characteristic) {
-        return false;
-      }
-
-      return this.matchesCharacteristic(
-        characteristic.value,
-        filter.operator,
-        filter.value,
-      );
-    });
-  }
-
-  private matchesCharacteristic(
-    charValue: string,
-    operator: SearchOperator,
-    filterValue: string,
-  ): boolean {
-    // Check if value is numeric
-    const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(charValue);
-
-    switch (operator) {
-      case SearchOperator.EQUALS:
-        return charValue.toLowerCase().includes(filterValue.toLowerCase());
-
-      case SearchOperator.LESS_THAN_OR_EQUAL:
-        if (isNumeric) {
-          return parseFloat(charValue) <= parseFloat(filterValue);
-        }
-        return charValue.toLowerCase().includes(filterValue.toLowerCase());
-
-      case SearchOperator.GREATER_THAN_OR_EQUAL:
-        if (isNumeric) {
-          return parseFloat(charValue) >= parseFloat(filterValue);
-        }
-        return charValue.toLowerCase().includes(filterValue.toLowerCase());
-
-      default:
-        return charValue.toLowerCase().includes(filterValue.toLowerCase());
     }
   }
 

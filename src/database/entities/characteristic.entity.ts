@@ -1,7 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, CreateDateColumn, UpdateDateColumn, JoinColumn, Index } from 'typeorm';
 import { ModelVariant } from './model-variant.entity';
 
 @Entity('characteristics')
+@Index(['code', 'modelVariantId'])
+@Index(['modelVariantId'])
+@Index(['code'])
 export class Characteristic {
   @PrimaryGeneratedColumn('uuid')
   id: string;

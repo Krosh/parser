@@ -331,7 +331,7 @@
 
         document.getElementById('searchForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             const formData = new FormData(e.target);
             const searchData = {
                 modelName: formData.get('modelName') || undefined,
@@ -344,18 +344,14 @@
                 const code = formData.get(`characteristics[${i}][code]`);
                 const operator = formData.get(`characteristics[${i}][operator]`);
                 const value = formData.get(`characteristics[${i}][value]`);
-                
+
                 if (code && operator && value) {
                     searchData.characteristics.push({ code, operator, value });
                 }
             }
 
-            // Показываем индикатор загрузки
             const resultsDiv = document.getElementById('results');
             const modelsListDiv = document.getElementById('modelsList');
-            
-            resultsDiv.style.display = 'block';
-            modelsListDiv.innerHTML = '<div class="loading">Поиск моделей...</div>';
 
             try {
                 const response = await fetch('/model-search/search', {
@@ -367,8 +363,12 @@
                 });
 
                 const result = await response.json();
+
+                // Показываем результаты только после получения ответа
+                resultsDiv.style.display = 'block';
                 displayResults(result);
             } catch (error) {
+                resultsDiv.style.display = 'block';
                 modelsListDiv.innerHTML = `<div class="error">Ошибка поиска: ${error.message}</div>`;
             }
         });

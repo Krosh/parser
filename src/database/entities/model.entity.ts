@@ -1,7 +1,9 @@
-import { Entity, Column, PrimaryGeneratedColumn, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToMany, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { ModelVariant } from './model-variant.entity';
 
 @Entity('models')
+@Index(['ktruCode'])
+@Index(['normalizedName'])
 export class Model {
   @PrimaryGeneratedColumn('uuid')
   id: string;
