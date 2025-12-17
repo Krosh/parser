@@ -5,13 +5,6 @@ import { parse } from 'csv-parse/sync';
 import { CharacteristicFilter, SearchOperator } from '../dto/model-search.dto';
 import { Characteristic } from '../../../database/entities/characteristic.entity';
 
-interface CsvFilterRow {
-  characteristicName: string;
-  characteristicValue: string;
-  unit?: string;
-  instruction?: string;
-}
-
 @Injectable()
 export class CsvFilterParserService {
   private readonly logger = new Logger(CsvFilterParserService.name);
@@ -34,9 +27,10 @@ export class CsvFilterParserService {
       const records = parse(content, {
         delimiter: ';',
         skipEmptyLines: true,
-        fromLine: 3, // Пропускаем первые 2 строки (заголовки)
+        fromLine: 1, // Пропускаем первые 2 строки (заголовки)
         relax_column_count: true,
         trim: true,
+        skip_records_with_error: true, // Пропускаем проблемные строки вместо падения
       }) as string[][];
 
       // Загружаем все характеристики для маппинга имён в коды
@@ -45,16 +39,52 @@ export class CsvFilterParserService {
       const filters: CharacteristicFilter[] = [];
       const notFoundCharacteristics: string[] = [];
 
+      // Группируем строки: если первая колонка пустая, это продолжение предыдущей характеристики
+      const groupedRecords: Array<{
+        name: string;
+        values: string[];
+      }> = [];
+
       for (const record of records) {
         if (record.length < 2) continue;
 
         const characteristicName = record[0]?.trim();
         const characteristicValue = record[1]?.trim();
 
-        if (!characteristicName || !characteristicValue) continue;
+        if (!characteristicValue) continue;
 
-        // Пропускаем пустые значения
-        if (characteristicValue === '' || characteristicValue === '-') continue;
+        if (characteristicName) {
+          // Новая характеристика
+          groupedRecords.push({
+            name: characteristicName,
+            values: [characteristicValue],
+          });
+        } else {
+          // Продолжение предыдущей характеристики (первая колонка пустая)
+          if (groupedRecords.length > 0) {
+            groupedRecords[groupedRecords.length - 1].values.push(
+              characteristicValue,
+            );
+          }
+        }
+      }
+
+      // Обрабатываем сгруппированные записи
+      for (const group of groupedRecords) {
+        const characteristicName = group.name;
+        const allValues = group.values.join(',');
+
+        // Пропускаем пустые значения и "Неважно"
+        if (
+          allValues === '' ||
+          allValues === '-' ||
+          allValues.toLowerCase() === 'неважно'
+        ) {
+          this.logger.debug(
+            `Skipping "${characteristicName}" with value "${allValues}"`,
+          );
+          continue;
+        }
 
         // Ищем код характеристики по названию
         const characteristicCode = this.findCharacteristicCode(
@@ -70,19 +100,20 @@ export class CsvFilterParserService {
           continue;
         }
 
-        // Определяем оператор и значение из строки
-        const { operator, value } =
-          this.parseValueWithOperator(characteristicValue);
+        // Парсим значение и создаем фильтры (может быть несколько для диапазонов/списков)
+        const parsedFilters = this.parseValueWithOperator(allValues);
 
-        filters.push({
-          code: characteristicCode,
-          value: value,
-          operator: operator,
-        });
+        for (const parsed of parsedFilters) {
+          filters.push({
+            code: characteristicCode,
+            value: parsed.value,
+            operator: parsed.operator,
+          });
 
-        this.logger.debug(
-          `Parsed filter: ${characteristicName} (${characteristicCode}) ${operator} ${value}`,
-        );
+          this.logger.debug(
+            `Parsed filter: ${characteristicName} (${characteristicCode}) ${parsed.operator} ${parsed.value}`,
+          );
+        }
       }
 
       if (notFoundCharacteristics.length > 0) {
@@ -137,31 +168,52 @@ export class CsvFilterParserService {
   }
 
   /**
-   * Извлекает оператор и значение из строки типа "≥ 46" или "Да"
+   * Извлекает оператор и значение из строки
+   * Поддерживает:
+   * - Простые значения: "Да", "Нет"
+   * - Операторы: "≥ 46", "≤ 2"
+   * - Диапазоны: "27 - 46" (преобразуется в два фильтра: >= 27 и <= 46)
+   * - Списки: "А,Б,В" (преобразуется в фильтр с объединенным значением)
    */
-  private parseValueWithOperator(valueStr: string): {
-    operator: SearchOperator;
-    value: string;
-  } {
+  private parseValueWithOperator(
+    valueStr: string,
+  ): Array<{ operator: SearchOperator; value: string }> {
     const trimmed = valueStr.trim();
+
+    // Проверяем диапазон (например "27 - 46")
+    const rangeMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)$/);
+    if (rangeMatch) {
+      const [, minValue, maxValue] = rangeMatch;
+      return [
+        { operator: SearchOperator.GREATER_THAN_OR_EQUAL, value: minValue },
+        { operator: SearchOperator.LESS_THAN_OR_EQUAL, value: maxValue },
+      ];
+    }
 
     // Проверяем наличие оператора в начале строки
     if (trimmed.startsWith('≥') || trimmed.startsWith('>=')) {
       const value = trimmed.replace(/^(≥|>=)\s*/, '').trim();
-      return { operator: SearchOperator.GREATER_THAN_OR_EQUAL, value };
+      return [{ operator: SearchOperator.GREATER_THAN_OR_EQUAL, value }];
     }
 
     if (trimmed.startsWith('≤') || trimmed.startsWith('<=')) {
       const value = trimmed.replace(/^(≤|<=)\s*/, '').trim();
-      return { operator: SearchOperator.LESS_THAN_OR_EQUAL, value };
+      return [{ operator: SearchOperator.LESS_THAN_OR_EQUAL, value }];
     }
 
     if (trimmed.startsWith('=')) {
       const value = trimmed.replace(/^=\s*/, '').trim();
-      return { operator: SearchOperator.EQUALS, value };
+      return [{ operator: SearchOperator.EQUALS, value }];
+    }
+
+    // Проверяем список значений через запятую
+    if (trimmed.includes(',')) {
+      // Для списков возвращаем один фильтр, который будет искать любое из значений
+      // В данном случае просто сохраняем весь список как есть
+      return [{ operator: SearchOperator.EQUALS, value: trimmed }];
     }
 
     // Если нет оператора, используем "равно" по умолчанию
-    return { operator: SearchOperator.EQUALS, value: trimmed };
+    return [{ operator: SearchOperator.EQUALS, value: trimmed }];
   }
 }
