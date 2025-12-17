@@ -497,6 +497,13 @@
                 if (index >= 0 && index < filteredCharacteristics.length) {
                     const selected = filteredCharacteristics[index];
                     input.value = selected.code;
+
+                    // Обновляем label, чтобы показать название характеристики
+                    const label = input.parentNode.querySelector('label');
+                    if (label) {
+                        label.innerHTML = `Характеристика: <span style="color: #007bff;">${selected.name}</span>`;
+                    }
+
                     suggestionsDiv.style.display = 'none';
                     currentSelection = -1;
                 }
@@ -545,7 +552,7 @@
 
                 // Добавляем фильтры из CSV
                 result.filters.forEach(filter => {
-                    addCharacteristicFilterWithData(filter.code, filter.operator, filter.value);
+                    addCharacteristicFilterWithData(filter.code, filter.operator, filter.value, filter.name);
                 });
 
                 uploadMessage.innerHTML = `<div class="success-message">Успешно загружено ${result.count} фильтров из CSV</div>`;
@@ -558,15 +565,19 @@
         }
 
         // Функция для добавления фильтра с предзаполненными данными
-        function addCharacteristicFilterWithData(code, operator, value) {
+        function addCharacteristicFilterWithData(code, operator, value, name) {
             const filtersContainer = document.getElementById('characteristicFilters');
 
             const filterDiv = document.createElement('div');
             filterDiv.className = 'characteristic-filter';
+
+            // Если есть имя характеристики, показываем его для удобства
+            const displayLabel = name ? `${name} (${code})` : code;
+
             filterDiv.innerHTML = `
                 <div class="filter-row">
                     <div class="autocomplete-wrapper">
-                        <label>Характеристика:</label>
+                        <label>Характеристика: ${name ? `<span style="color: #007bff;">${name}</span>` : ''}</label>
                         <input type="text"
                                name="characteristics[${filterIndex}][code]"
                                class="characteristic-autocomplete"

@@ -5,6 +5,10 @@ import { parse } from 'csv-parse/sync';
 import { CharacteristicFilter, SearchOperator } from '../dto/model-search.dto';
 import { Characteristic } from '../../../database/entities/characteristic.entity';
 
+export interface CharacteristicFilterWithName extends CharacteristicFilter {
+  name: string;
+}
+
 @Injectable()
 export class CsvFilterParserService {
   private readonly logger = new Logger(CsvFilterParserService.name);
@@ -20,7 +24,7 @@ export class CsvFilterParserService {
    * Column1;Column2;Column3;Column4
    * Наименование характеристики;Значение характеристики*;Единица измерения;Инструкция к заполнению
    */
-  async parseFiltersCsv(fileBuffer: Buffer): Promise<CharacteristicFilter[]> {
+  async parseFiltersCsv(fileBuffer: Buffer): Promise<CharacteristicFilterWithName[]> {
     try {
       const content = fileBuffer.toString('utf-8');
 
@@ -36,7 +40,7 @@ export class CsvFilterParserService {
       // Загружаем все характеристики для маппинга имён в коды
       const characteristicMap = await this.loadCharacteristicNameToCodeMap();
 
-      const filters: CharacteristicFilter[] = [];
+      const filters: CharacteristicFilterWithName[] = [];
       const notFoundCharacteristics: string[] = [];
 
       // Группируем строки: если первая колонка пустая, это продолжение предыдущей характеристики
@@ -86,13 +90,13 @@ export class CsvFilterParserService {
           continue;
         }
 
-        // Ищем код характеристики по названию
-        const characteristicCode = this.findCharacteristicCode(
+        // Ищем характеристику по названию
+        const characteristic = this.findCharacteristic(
           characteristicName,
           characteristicMap,
         );
 
-        if (!characteristicCode) {
+        if (!characteristic) {
           this.logger.warn(
             `Characteristic not found for name: "${characteristicName}"`,
           );
@@ -105,13 +109,14 @@ export class CsvFilterParserService {
 
         for (const parsed of parsedFilters) {
           filters.push({
-            code: characteristicCode,
+            code: characteristic.code,
+            name: characteristic.name,
             value: parsed.value,
             operator: parsed.operator,
           });
 
           this.logger.debug(
-            `Parsed filter: ${characteristicName} (${characteristicCode}) ${parsed.operator} ${parsed.value}`,
+            `Parsed filter: ${characteristicName} (${characteristic.code}) ${parsed.operator} ${parsed.value}`,
           );
         }
       }
@@ -135,34 +140,34 @@ export class CsvFilterParserService {
   }
 
   /**
-   * Загружает все характеристики и создаёт маппинг имя -> код
+   * Загружает все характеристики и создаёт маппинг имя -> {код, имя}
    */
   private async loadCharacteristicNameToCodeMap(): Promise<
-    Map<string, string>
+    Map<string, { code: string; name: string }>
   > {
     const characteristics = await this.characteristicRepository
       .createQueryBuilder('characteristic')
       .select(['characteristic.code', 'characteristic.name'])
       .getMany();
 
-    const map = new Map<string, string>();
+    const map = new Map<string, { code: string; name: string }>();
 
     for (const char of characteristics) {
       // Сохраняем как оригинальное имя, так и нормализованное (lowercase)
       const normalizedName = char.name.toLowerCase().trim();
-      map.set(normalizedName, char.code);
+      map.set(normalizedName, { code: char.code, name: char.name });
     }
 
     return map;
   }
 
   /**
-   * Ищет код характеристики по её названию (нечувствительно к регистру)
+   * Ищет характеристику по её названию (нечувствительно к регистру)
    */
-  private findCharacteristicCode(
+  private findCharacteristic(
     name: string,
-    characteristicMap: Map<string, string>,
-  ): string | null {
+    characteristicMap: Map<string, { code: string; name: string }>,
+  ): { code: string; name: string } | null {
     const normalizedName = name.toLowerCase().trim();
     return characteristicMap.get(normalizedName) || null;
   }
