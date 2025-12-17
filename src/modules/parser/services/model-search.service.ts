@@ -88,23 +88,50 @@ export class ModelSearchService {
     // Для каждого фильтра добавляем EXISTS условие
     filters.forEach((filter, index) => {
       const paramName = `charCode${index}`;
-      const valueName = `charValue${index}`;
 
-      query = query.andWhere(
-        `EXISTS (
-          SELECT 1 FROM characteristics ch
-          WHERE ch."modelVariantId" = variant.id
-          AND ch.code = :${paramName}
-          AND ${this.buildCharacteristicCondition(filter.operator, `ch.value`, `:${valueName}`)}
-        )`,
-        {
-          [paramName]: filter.code,
-          [valueName]:
-            filter.operator === SearchOperator.EQUALS
-              ? `%${filter.value}%`
-              : filter.value,
-        },
-      );
+      // Если оператор EQUALS и значение содержит запятые, разбиваем на массив
+      if (filter.operator === SearchOperator.EQUALS && filter.value.includes(',')) {
+        const values = filter.value.split(',').map(v => v.trim());
+
+        // Создаём условие AND для каждого значения из списка
+        const andConditions = values.map((_, valueIndex) => {
+          const valueName = `charValue${index}_${valueIndex}`;
+          return `LOWER(CAST(ch.value AS TEXT)) LIKE LOWER(:${valueName})`;
+        }).join(' AND ');
+
+        const params: any = { [paramName]: filter.code };
+        values.forEach((value, valueIndex) => {
+          params[`charValue${index}_${valueIndex}`] = `%${value}%`;
+        });
+
+        query = query.andWhere(
+          `EXISTS (
+            SELECT 1 FROM characteristics ch
+            WHERE ch."modelVariantId" = variant.id
+            AND ch.code = :${paramName}
+            AND (${andConditions})
+          )`,
+          params,
+        );
+      } else {
+        const valueName = `charValue${index}`;
+
+        query = query.andWhere(
+          `EXISTS (
+            SELECT 1 FROM characteristics ch
+            WHERE ch."modelVariantId" = variant.id
+            AND ch.code = :${paramName}
+            AND ${this.buildCharacteristicCondition(filter.operator, `ch.value`, `:${valueName}`)}
+          )`,
+          {
+            [paramName]: filter.code,
+            [valueName]:
+              filter.operator === SearchOperator.EQUALS
+                ? `%${filter.value}%`
+                : filter.value,
+          },
+        );
+      }
     });
 
     const results = await query.getRawMany<{ variant_id: string }>();
